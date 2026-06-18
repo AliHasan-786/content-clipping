@@ -168,10 +168,10 @@ Repo status:
 - Reddit/RSS/manual trend lane exists.
 - LLM triage now adds hooks, source-search queries, comment angles, and safety flags.
 - `clip brief` and the dashboard daily trend brief now group open opportunities into render-now, source-review, blocked-signal, source-search, and next-action lanes.
+- `clip import-trends path/to/export.csv --source tool-name` imports CSV/TSV exports from external trend tools into the same rights-gated review queue.
 
 Next useful improvement:
-- Add manual CSV/API imports for TikTok Creative Center, TrendTok, vidIQ, and Exploding Topics exports.
-- Add importers for daily topic/sound/hashtag exports so the brief can include non-Reddit trend signals.
+- Add direct API/scraper adapters only for exports that prove useful repeatedly; keep CSV import as the default bridge.
 
 ### Posting / Scheduling
 

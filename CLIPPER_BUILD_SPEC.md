@@ -97,6 +97,7 @@ clipper/
   - `reddit_hot` / `reddit_top`: subreddits whose posts/comments are useful conversation starters.
   - `rss`: feeds for news/discourse sources or Reddit RSS.
   - `manual_url`: one-off X/Twitter, Reddit, official clip, licensed clip, or evergreen moment URL that the owner wants tracked.
+  - `csv_import`: external trend-tool exports imported with `clip import-trends`, such as TikTok Creative Center, TrendTok, vidIQ, Exploding Topics, or a manual spreadsheet.
 - Discover same-day opportunities and score by recency + engagement velocity:
   - Reddit: upvotes, comments, age.
   - RSS/manual: recency plus optional manually supplied score/comment signals.
@@ -238,6 +239,7 @@ Put all keys in `.env`. Never commit it.
 clip run        # trend discovery + stages 1–5. ~10–20 min unattended.
 clip auth status # verify API/posting credentials without printing secrets
 clip trends     # run only the trendjacking discovery lane
+clip import-trends trends.csv --source vidiq # import external trend-tool export
 clip brief      # summarize today's trend queue into render/review priorities
 clip review     # opens http://127.0.0.1:8765. View full MP4s, approve/reject, optionally post.
 clip schedule   # suggest posting order for approved clips

@@ -153,6 +153,20 @@ def brief_cmd(limit: int):
     brief.print_brief(limit=limit)
 
 
+@cli.command(name="import-trends")
+@click.argument("path", type=click.Path(exists=True, dir_okay=False))
+@click.option("--source", default=None, help="Label for the external tool/export source.")
+@click.option("--default-kind", default="social_text", help="Source kind if the CSV has no kind/type column.")
+@click.option("--limit", type=int, default=None, help="Maximum rows to import.")
+@click.pass_obj
+def import_trends_cmd(cfg: dict, path: str, source: str | None, default_kind: str, limit: int | None):
+    """Import a CSV/TSV export from an external trend tool into the review queue."""
+    from pipeline import trend_import
+
+    inserted = trend_import.import_csv(path, cfg, source=source, default_kind=default_kind, limit=limit)
+    click.echo(f"imported {inserted} trend opportunities")
+
+
 @cli.command()
 @click.pass_obj
 def review(cfg: dict):
