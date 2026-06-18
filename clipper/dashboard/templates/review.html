@@ -142,63 +142,13 @@
 </header>
 
 <main>
-<section id="trend-queue">
+<section id="clip-queue">
   <div class="section-title">
-    <h2>Trend opportunities</h2>
+    <h2>Rendered previews</h2>
     <div class="meta-line">
-      new {{trend_counts.get("new", 0)}} · approved {{trend_counts.get("approved", 0)}} · rejected {{trend_counts.get("rejected", 0)}}
+      pending {{counts.get("pending_review", 0)}} · approved {{counts.get("approved", 0)}} · posted {{counts.get("posted", 0)}}
     </div>
   </div>
-
-  {% if not trends %}
-    <div class="empty" style="padding: 36px 0; margin-bottom: 24px;">
-      No trend opportunities yet.<br>
-      Run <code>clip trends</code> after adding sources to <code>TREND_SOURCES.md</code>.
-    </div>
-  {% else %}
-    <div class="trend-grid">
-    {% for t in trends %}
-      <div class="trend-card {% if t.rights_status == 'blocked' %}blocked{% endif %}" id="trend-{{t.id}}">
-        <div class="trend-head">
-          <h3 class="trend-title">
-            <a href="{{t.url}}" target="_blank" rel="noopener">{{t.title or t.url}}</a>
-          </h3>
-          <span class="score">{{t.trend_score or 0}}</span>
-        </div>
-        <div class="trend-meta">
-          <span class="status-pill">{{t.rights_status}}</span>
-          <span>{{t.recommended_format}}</span>
-          <span>{{t.source_kind}}</span>
-          {% if t.author %}<span>@{{t.author}}</span>{% endif %}
-          {% if t.comments is not none %}<span>{{t.comments}} comments</span>{% endif %}
-        </div>
-        <p class="trend-treatment">{{t.treatment}}</p>
-        <details>
-          <summary>Evidence</summary>
-          <pre>{{t.evidence}}</pre>
-        </details>
-        <div class="trend-actions">
-          {% if t.rights_status != "blocked" %}
-            <form method="post" action="/trend/{{t.id}}/approve">
-              <button type="submit" class="primary">
-                {% if t.rights_status == "allowed" and t.recommended_format == "screenshot_card" %}
-                  Render preview
-                {% else %}
-                  Approve treatment
-                {% endif %}
-              </button>
-            </form>
-          {% endif %}
-          <button type="button" class="danger" onclick="rejectTrend({{t.id}})">Reject</button>
-          {% if t.rights_status == "blocked" %}
-            <span class="meta-line">blocked items are trend signals only</span>
-          {% endif %}
-        </div>
-      </div>
-    {% endfor %}
-    </div>
-  {% endif %}
-</section>
 
 {% if not clips %}
   <div class="empty">
@@ -287,6 +237,65 @@
     </div>
   </div>
 {% endfor %}
+</section>
+
+<section id="trend-queue">
+  <div class="section-title">
+    <h2>Trend opportunities</h2>
+    <div class="meta-line">
+      new {{trend_counts.get("new", 0)}} · approved {{trend_counts.get("approved", 0)}} · rejected {{trend_counts.get("rejected", 0)}}
+    </div>
+  </div>
+
+  {% if not trends %}
+    <div class="empty" style="padding: 36px 0; margin-bottom: 24px;">
+      No trend opportunities yet.<br>
+      Run <code>clip trends</code> after adding sources to <code>TREND_SOURCES.md</code>.
+    </div>
+  {% else %}
+    <div class="trend-grid">
+    {% for t in trends %}
+      <div class="trend-card {% if t.rights_status == 'blocked' %}blocked{% endif %}" id="trend-{{t.id}}">
+        <div class="trend-head">
+          <h3 class="trend-title">
+            <a href="{{t.url}}" target="_blank" rel="noopener">{{t.title or t.url}}</a>
+          </h3>
+          <span class="score">{{t.trend_score or 0}}</span>
+        </div>
+        <div class="trend-meta">
+          <span class="status-pill">{{t.rights_status}}</span>
+          <span>{{t.recommended_format}}</span>
+          <span>{{t.source_kind}}</span>
+          {% if t.author %}<span>@{{t.author}}</span>{% endif %}
+          {% if t.comments is not none %}<span>{{t.comments}} comments</span>{% endif %}
+        </div>
+        <p class="trend-treatment">{{t.treatment}}</p>
+        <details>
+          <summary>Evidence</summary>
+          <pre>{{t.evidence}}</pre>
+        </details>
+        <div class="trend-actions">
+          {% if t.rights_status != "blocked" %}
+            <form method="post" action="/trend/{{t.id}}/approve">
+              <button type="submit" class="primary">
+                {% if t.rights_status == "allowed" and t.recommended_format == "screenshot_card" %}
+                  Render preview
+                {% else %}
+                  Approve treatment
+                {% endif %}
+              </button>
+            </form>
+          {% endif %}
+          <button type="button" class="danger" onclick="rejectTrend({{t.id}})">Reject</button>
+          {% if t.rights_status == "blocked" %}
+            <span class="meta-line">blocked items are trend signals only</span>
+          {% endif %}
+        </div>
+      </div>
+    {% endfor %}
+    </div>
+  {% endif %}
+</section>
 </main>
 
 <script>
