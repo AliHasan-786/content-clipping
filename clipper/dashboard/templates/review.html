@@ -274,6 +274,30 @@
     margin-bottom: 12px;
     max-width: 720px;
   }
+  .ai-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 0 0 12px;
+  }
+  .ai-actions form { margin: 0; }
+  .ai-panel {
+    border: 1px solid var(--line);
+    border-radius: 7px;
+    background: #0f1419;
+    padding: 10px 12px;
+    margin-bottom: 10px;
+    color: var(--muted);
+    font-size: 12px;
+  }
+  .ai-panel strong {
+    color: var(--text);
+  }
+  .mini-list {
+    margin: 8px 0 0;
+    padding-left: 18px;
+  }
+  .mini-list li { margin: 3px 0; }
   details { margin-bottom: 12px; }
   details > summary {
     cursor: pointer;
@@ -453,6 +477,9 @@
       <a href="#trend-queue">today's trends{% if trend_counts.get("new") %} ({{trend_counts["new"]}}){% endif %}</a>
     </nav>
     <div class="header-actions">
+      <form method="post" action="/schedule-approved">
+        <button type="submit">Plan approved</button>
+      </form>
       <form method="post" action="/post-approved">
         <button type="submit" class="primary" {% if not post_ready_count %}disabled title="Add platform credentials first"{% endif %}>
           Post approved
@@ -471,6 +498,16 @@
         Approved clips were posted to at least one connected platform.
       {% elif notice == "post_attempt_failed" %}
         Posting ran, but no platform accepted an upload. Check the recent post log or credentials.
+      {% elif notice == "ai_needs_key" %}
+        AI actions need ANTHROPIC_API_KEY in clipper/.env.
+      {% elif notice == "ai_updated" %}
+        AI updated the platform copy and variants for that clip.
+      {% elif notice == "ai_failed" %}
+        AI assist failed. Check the terminal for the provider error.
+      {% elif notice == "schedule_updated" %}
+        Approved clips now have posting order suggestions.
+      {% elif notice == "schedule_empty" %}
+        No approved clips were available to schedule.
       {% else %}
         {{notice}}
       {% endif %}
@@ -507,6 +544,9 @@
           {{p.name}}: {% if p.ready %}ready{% elif p.enabled %}needs keys{% else %}off{% endif %}
         </span>
       {% endfor %}
+      <span class="chip {% if ai_ready %}ready{% else %}missing{% endif %}">
+        AI: {% if ai_ready %}ready{% else %}needs key{% endif %}
+      </span>
     </div>
   </section>
 
@@ -590,7 +630,60 @@
 
         <div class="clip-copy">
           <div class="hook">{{c.hook}}</div>
-          <div class="why">{{c.why_it_works}}</div>
+          {% set clip_ai = c.metadata.get('clip_ai', {}) %}
+          {% set safety = c.metadata.get('safety_review') or clip_ai.get('safety_review') or {} %}
+          {% set variants = c.metadata.get('variants') or clip_ai.get('variants') or {} %}
+          {% set source_search = c.metadata.get('source_search') or {} %}
+          {% set plan = c.metadata.get('posting_plan') or {} %}
+
+          <div class="ai-actions">
+            <form method="post" action="/clip/{{c.id}}/ai-assist">
+              <input type="hidden" name="action" value="Make the captions funnier and more native to internet culture without changing facts.">
+              <button type="submit" {% if not ai_ready %}disabled{% endif %}>Funnier</button>
+            </form>
+            <form method="post" action="/clip/{{c.id}}/ai-assist">
+              <input type="hidden" name="action" value="Make the hook and captions more debate-driving, but keep them fair and non-defamatory.">
+              <button type="submit" {% if not ai_ready %}disabled{% endif %}>More debate</button>
+            </form>
+            <form method="post" action="/clip/{{c.id}}/ai-assist">
+              <input type="hidden" name="action" value="Shorten the TikTok caption and hashtags while keeping the hook strong.">
+              <button type="submit" {% if not ai_ready %}disabled{% endif %}>Shorter TikTok</button>
+            </form>
+            <form method="post" action="/clip/{{c.id}}/ai-assist">
+              <input type="hidden" name="action" value="Make all platform copy safer for rights, context, and brand suitability.">
+              <button type="submit" {% if not ai_ready %}disabled{% endif %}>Safer</button>
+            </form>
+          </div>
+
+          {% if plan %}
+            <div class="ai-panel">
+              <strong>Posting plan:</strong>
+              #{{plan.get('rank', '-')}} · {{plan.get('slot_label', 'anytime')}} · {{plan.get('reason', '')}}
+            </div>
+          {% endif %}
+
+          {% if safety %}
+            <div class="ai-panel">
+              <strong>Safety:</strong>
+              {{safety.get('status', 'review')}}
+              {% if safety.get('flags') %} · {{safety.get('flags', [])|join(', ')}}{% endif %}
+              {% if safety.get('note') %}<div>{{safety.get('note')}}</div>{% endif %}
+            </div>
+          {% endif %}
+
+          {% if source_search.get('queries') or source_search.get('candidates') %}
+            <details>
+              <summary>Source-finding hints</summary>
+              <pre>{{source_search}}</pre>
+            </details>
+          {% endif %}
+
+          {% if variants %}
+            <details>
+              <summary>AI variants</summary>
+              <pre>{{variants}}</pre>
+            </details>
+          {% endif %}
 
           <details>
             <summary>VO script</summary>

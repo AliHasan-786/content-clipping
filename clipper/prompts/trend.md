@@ -24,6 +24,17 @@ Your job is to turn it into a safe, transformative short-form treatment.
   "attribution": "visible attribution text",
   "conversation_prompt": "caption/comment prompt that invites debate",
   "rights_note": "why this is allowed, review-required, or blocked",
+  "source_search_queries": ["queries to find original/official/licensed source when needed"],
+  "source_candidates": ["possible original or official sources to check manually"],
+  "comment_mining": {
+    "angle": "what people are arguing/laughing about",
+    "best_comment_prompt": "question to generate comments without fabricating facts"
+  },
+  "safety_review": {
+    "status": "ok" | "review" | "blocked",
+    "flags": ["rights", "independent_creator", "context_missing", "sensitive"],
+    "note": "brief practical note"
+  },
   "virality_score": 0
 }
 ```
@@ -39,3 +50,6 @@ Evidence:
 ```json
 {evidence_json}
 ```
+
+Owner feedback profile:
+{feedback_profile}

@@ -7,28 +7,21 @@ to the `clips` table with status `scouted`.
 from __future__ import annotations
 
 import json
-import os
 import re
+import shutil
+import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 import db  # noqa: E402
+from pipeline import ai, learning  # noqa: E402
 
 PROMPT_PATH = ROOT / "prompts" / "scout.md"
-
-
-def _client():
-    try:
-        from anthropic import Anthropic
-    except ImportError:
-        raise RuntimeError("anthropic SDK not installed. `pip install anthropic`.")
-    key = os.environ.get("ANTHROPIC_API_KEY")
-    if not key:
-        raise RuntimeError("ANTHROPIC_API_KEY missing in .env")
-    return Anthropic(api_key=key)
+DOWNLOADS = ROOT / "data" / "downloads"
 
 
 def _format_transcript(tx: dict, min_clip_s: float) -> str:
@@ -51,7 +44,7 @@ def _format_transcript(tx: dict, min_clip_s: float) -> str:
     return "\n".join(lines)
 
 
-def _build_prompt(cfg: dict, cand: dict, tx: dict) -> str:
+def _build_prompt(cfg: dict, cand: dict, tx: dict, feedback_profile: str) -> str:
     template = PROMPT_PATH.read_text()
     return (template
             .replace("{niche}", cfg["niche"])
@@ -59,6 +52,7 @@ def _build_prompt(cfg: dict, cand: dict, tx: dict) -> str:
             .replace("{title}", cand.get("title") or "(unknown)")
             .replace("{channel}", cand.get("channel") or "(unknown)")
             .replace("{duration}", str(cand.get("duration_s") or int(tx.get("duration") or 0)))
+            .replace("{feedback_profile}", feedback_profile)
             .replace("{transcript}", _format_transcript(tx, cfg["scout"]["min_clip_seconds"])))
 
 
@@ -71,18 +65,60 @@ def _extract_json(text: str) -> dict:
     return json.loads(m.group(0))
 
 
-def _call_claude(client, model: str, prompt: str) -> dict:
-    resp = client.messages.create(
-        model=model,
-        max_tokens=4096,
-        messages=[{"role": "user", "content": prompt}],
-    )
-    # SDK gives a list of content blocks; concatenate text blocks.
-    text = "".join(getattr(b, "text", "") for b in resp.content)
-    return _extract_json(text)
+def _resolve_media(cand: dict) -> Path | None:
+    noted = cand.get("notes")
+    if noted and Path(noted).exists():
+        return Path(noted)
+    vid = cand.get("video_id")
+    for ext in (".mp4", ".mkv", ".webm", ".mov"):
+        path = DOWNLOADS / f"{vid}{ext}"
+        if path.exists():
+            return path
+    return None
 
 
-def _scout_one(cfg: dict, client, cand: dict) -> int:
+def _sample_frames(cfg: dict, cand: dict, duration: float) -> list[Path]:
+    frame_cfg = cfg.get("scout", {}).get("visual_frames", {})
+    if not frame_cfg.get("enabled", False) or not shutil.which("ffmpeg"):
+        return []
+    media = _resolve_media(cand)
+    if not media:
+        return []
+
+    max_frames = max(0, int(frame_cfg.get("max_frames", 4)))
+    if max_frames <= 0:
+        return []
+
+    tmp = Path(tempfile.mkdtemp(prefix="clip_scout_frames_"))
+    usable_duration = max(duration, 1.0)
+    frames: list[Path] = []
+    for idx in range(max_frames):
+        pct = (idx + 1) / (max_frames + 1)
+        ts = usable_duration * pct
+        out = tmp / f"frame_{idx+1}.jpg"
+        cmd = [
+            "ffmpeg", "-y",
+            "-ss", f"{ts:.2f}",
+            "-i", str(media),
+            "-frames:v", "1",
+            "-vf", "scale=480:-1",
+            "-q:v", "4",
+            str(out),
+        ]
+        try:
+            subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            if out.exists() and out.stat().st_size > 0:
+                frames.append(out)
+        except subprocess.CalledProcessError:
+            continue
+    return frames
+
+
+def _call_claude(model: str, prompt: str, frames: list[Path]) -> dict:
+    return ai.call_json(model, prompt, max_tokens=4096, image_paths=frames)
+
+
+def _scout_one(cfg: dict, cand: dict, feedback_profile: str) -> int:
     """Returns number of clips persisted."""
     vid = cand["video_id"]
     with db.connect() as conn:
@@ -94,13 +130,19 @@ def _scout_one(cfg: dict, client, cand: dict) -> int:
         return 0
 
     tx = json.loads(Path(tx_row["path"]).read_text())
-    prompt = _build_prompt(cfg, cand, tx)
+    prompt = _build_prompt(cfg, cand, tx, feedback_profile)
+    duration = float(cand.get("duration_s") or tx.get("duration") or 0)
+    frames = _sample_frames(cfg, cand, duration)
+    frame_dir = frames[0].parent if frames else None
 
     try:
-        parsed = _call_claude(client, cfg["scout"]["model"], prompt)
+        parsed = _call_claude(cfg["scout"]["model"], prompt, frames)
     except Exception as e:
         print(f"[scout]   {vid}: claude error: {e}", file=sys.stderr)
         return 0
+    finally:
+        if frame_dir:
+            shutil.rmtree(frame_dir, ignore_errors=True)
 
     clips = parsed.get("clips", [])
     min_score = int(cfg["scout"]["min_virality_score"])
@@ -135,8 +177,16 @@ def _scout_one(cfg: dict, client, cand: dict) -> int:
                 "format":  fmt,
                 "hook":    clip.get("hook", ""),
                 "vo_script": vo,
-                "why_it_works": clip.get("why_it_works", ""),
+                "why_it_works": "",
                 "virality_score": score,
+                "metadata_json": db.jdumps({
+                    "clip_ai": {
+                        "variants": clip.get("variants") or {},
+                        "safety_review": clip.get("safety_review") or {},
+                        "self_check": clip.get("self_check", ""),
+                        "visual_frames_used": len(frames),
+                    }
+                }),
                 "status": "scouted",
             })
             kept += 1
@@ -146,7 +196,9 @@ def _scout_one(cfg: dict, client, cand: dict) -> int:
 
 
 def run(cfg: dict) -> int:
-    client = _client()
+    ai.require_available(cfg)
+    profile = learning.approval_profile()
+    feedback_profile = learning.prompt_context(profile)
     with db.connect() as conn:
         cands = conn.execute(
             "SELECT * FROM candidates WHERE status = 'ingested' ORDER BY velocity DESC"
@@ -159,6 +211,6 @@ def run(cfg: dict) -> int:
     total = 0
     for c in cands:
         print(f"[scout] {c['video_id']} — {c['title'][:80]}")
-        total += _scout_one(cfg, client, c)
+        total += _scout_one(cfg, c, feedback_profile)
     print(f"[scout] {total} clip candidates kept across {len(cands)} sources")
     return total

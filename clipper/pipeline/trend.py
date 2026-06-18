@@ -23,8 +23,10 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 import db  # noqa: E402
+from pipeline import ai, learning  # noqa: E402
 
 TREND_SOURCES_FILE = ROOT / "TREND_SOURCES.md"
+PROMPT_PATH = ROOT / "prompts" / "trend.md"
 USER_AGENT = "content-clipping-trend-scout/0.1"
 
 VALID_TYPES = {"reddit_hot", "reddit_top", "rss", "manual_url"}
@@ -415,6 +417,77 @@ def _manual(src: TrendSource, cfg: dict) -> list[TrendOpportunity]:
     return [_make_opp(src, src.identifier, title, src.meta.get("author"), published, score, comments, evidence, cfg)]
 
 
+def _apply_learning(opportunities: list[TrendOpportunity], profile: dict) -> None:
+    for opp in opportunities:
+        adjustment = learning.trend_score_adjustment(opp.title, opp.source_id, profile)
+        if not adjustment:
+            continue
+        opp.trend_score = max(0, min(100, opp.trend_score + adjustment))
+        opp.evidence["approval_learning"] = {
+            "score_adjustment": adjustment,
+            "profile": profile,
+        }
+
+
+def _trend_prompt(cfg: dict, opp: TrendOpportunity, feedback_profile: str) -> str:
+    return (PROMPT_PATH.read_text()
+            .replace("{niche}", cfg["niche"])
+            .replace("{source_kind}", opp.source_kind)
+            .replace("{rights_status}", opp.rights_status)
+            .replace("{title}", opp.title)
+            .replace("{url}", opp.url)
+            .replace("{evidence_json}", json.dumps(opp.evidence, ensure_ascii=False, indent=2))
+            .replace("{feedback_profile}", feedback_profile))
+
+
+def _apply_ai_triage(opp: TrendOpportunity, parsed: dict, cfg: dict) -> None:
+    if not parsed:
+        return
+
+    # Keep hard rights gates deterministic. The model can enrich treatment, but
+    # cannot make blocked/review-required media renderable.
+    requested_format = parsed.get("recommended_format")
+    if opp.rights_status == "blocked":
+        opp.recommended_format = "do_not_repost"
+    elif opp.rights_status == "review_required":
+        opp.recommended_format = "rights_review"
+    elif requested_format in {"screenshot_card", "commentary_clip"}:
+        opp.recommended_format = requested_format
+
+    if parsed.get("treatment"):
+        opp.treatment = str(parsed["treatment"])[:1000]
+    if isinstance(parsed.get("virality_score"), int):
+        opp.trend_score = max(0, min(100, max(opp.trend_score, int(parsed["virality_score"]))))
+
+    ai_payload = {
+        "hook": parsed.get("hook"),
+        "vo_script": parsed.get("vo_script"),
+        "attribution": parsed.get("attribution"),
+        "conversation_prompt": parsed.get("conversation_prompt"),
+        "rights_note": parsed.get("rights_note"),
+        "source_search_queries": parsed.get("source_search_queries") or [],
+        "source_candidates": parsed.get("source_candidates") or [],
+        "comment_mining": parsed.get("comment_mining") or {},
+        "safety_review": parsed.get("safety_review") or {},
+    }
+    opp.evidence["ai_triage"] = {k: v for k, v in ai_payload.items() if v}
+
+
+def _enrich_with_ai(opportunities: list[TrendOpportunity], cfg: dict, feedback_profile: str) -> None:
+    if not cfg.get("ai", {}).get("trend_triage", True) or not ai.available(cfg):
+        return
+    model = cfg.get("ai", {}).get("model_fast") or cfg.get("package", {}).get("model")
+    for opp in opportunities:
+        parsed = ai.safe_call_json(
+            model,
+            _trend_prompt(cfg, opp, feedback_profile),
+            max_tokens=2048,
+            label="trend-ai",
+        )
+        if parsed:
+            _apply_ai_triage(opp, parsed, cfg)
+
+
 def discover(sources: list[TrendSource], cfg: dict) -> list[TrendOpportunity]:
     found: list[TrendOpportunity] = []
     max_keep = int(cfg.get("trend", {}).get("max_opportunities", 25))
@@ -457,6 +530,9 @@ def run(cfg: dict) -> int:
     max_keep = int(cfg["trend"].get("max_opportunities", 25))
 
     opportunities = discover(sources, cfg)
+    profile = learning.approval_profile()
+    _apply_learning(opportunities, profile)
+    _enrich_with_ai(opportunities, cfg, learning.prompt_context(profile))
     opportunities = [
         o for o in opportunities
         if o.trend_score >= min_score or o.source_type == "manual_url" or o.rights_status == "blocked"

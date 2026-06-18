@@ -41,7 +41,7 @@ Owner runs it daily. Daily human effort target: **~5 minutes** (approve queue + 
 - **Language:** Python 3.11 + FastAPI (orchestrator + review dashboard). Matches owner's stack.
 - **Download:** `yt-dlp`
 - **Transcribe:** `whisper.cpp` (or `faster-whisper`) — local, free, word-level timestamps. Fast on Apple Silicon.
-- **Brain (scout + packaging):** Claude API (`claude-opus-4-7` for scout judgment, `claude-sonnet` for packaging to save cost).
+- **Brain (trend triage + scout + packaging + dashboard assist):** Claude API (`claude-opus-4-7` for scout judgment, `claude-sonnet` for packaging/triage/rewrites to save cost).
 - **Cut/render:** `ffmpeg` + `ffmpeg-python`. Captions via ASS subtitle format (animated word-by-word).
 - **TTS voiceover:** ElevenLabs API (best quality) OR local `kokoro`/`piper` (free). Default to a free local TTS, ElevenLabs behind a flag.
 - **Queue/state:** SQLite (`clips.db`). Dead simple, no server.
@@ -59,9 +59,12 @@ clipper/
 │   ├── trend.py            # find trendjacking opportunities, rights-gated
 │   ├── source.py           # poll watchlist, find trending candidates
 │   ├── ingest.py           # yt-dlp download + whisper transcribe
-│   ├── scout.py            # Claude: pick moments + write VO script
+│   ├── scout.py            # Claude: pick moments + write VO script, optionally with sampled frames
 │   ├── cut.py              # ffmpeg: vertical reframe, captions, VO mux
 │   ├── package.py          # Claude: per-platform captions + hashtags
+│   ├── schedule.py         # posting order suggestions
+│   ├── ai.py               # shared Anthropic JSON/multimodal helper
+│   ├── learning.py         # approval/rejection feedback profile
 │   └── post.py             # YT / IG / TikTok publishers
 ├── dashboard/
 │   ├── app.py              # FastAPI review UI
@@ -103,6 +106,12 @@ clipper/
   - **Blocked:** `independent_creator_repost`, `raw_tiktok_repost`, `private_person_video`.
 - Output to `trend_opportunities` table with:
   - `trend_score`, `rights_status`, `recommended_format`, `treatment`, `evidence_json`.
+- If `ANTHROPIC_API_KEY` is present, enrich each opportunity with:
+  - stronger hook/treatment and conversation prompt,
+  - source-search queries for original/official/licensed alternatives,
+  - comment-mining angle for Reddit/X-style discussion,
+  - safety/rights flags.
+- Approval/rejection history lightly adjusts trend scores so the queue learns owner taste without hiding the underlying evidence.
 - Recommended formats:
   - `screenshot_card`: for X/Twitter-style posts, Reddit posts/comments, or news/discourse snippets. Must include visible attribution, background music, and a value-add caption/VO/question.
   - `commentary_clip`: only for official/licensed/public-domain/owned clips, with transformative VO. These are queued as source media and run through ingest/scout/cut before a full source-footage video appears in review.
@@ -122,8 +131,10 @@ clipper/
   - `format`: `"ranked_list"` | `"context_explainer"`
   - `hook`: the first-3-seconds hook line
   - `vo_script`: the full voiceover script — **MUST add context/ranking/analysis the footage lacks**, timed to fit the clip
-  - `why_it_works`: 1-line rationale (for owner's review glance)
+  - `variants`: alternate hooks/VO angles for dashboard editing
+  - `safety_review`: rights/context/brand-safety flags
   - `virality_score`: 0–100
+- If source media is still available, the scout can sample a few frames and send them with the transcript so visual jokes, gameplay state, streamer reactions, scoreboards, and event context influence clip selection.
 - Take top N per source (config: `clips_per_source`, default 1–2).
 - **Quality gate:** discard anything with `virality_score < 70` or where `vo_script` merely restates on-screen content (the prompt enforces a self-check).
 
@@ -146,6 +157,7 @@ clipper/
   - **YouTube Shorts:** title (≤100 char, hook-forward), description (with 3–5 hashtags inline), tags.
   - **TikTok:** caption (native, casual, hook-first), 4–6 hashtags (mix: 1 broad, 2–3 niche, 1–2 trending).
   - **Instagram Reels:** caption (slightly more polished), 8–15 hashtags (IG rewards more), first-comment hashtag option.
+- Also returns editable variants, a safety review, and a first-pass posting slot suggestion.
 - Hashtag strategy per platform is researched/encoded in the prompt; refresh trending tags via a light web lookup monthly (manual config update, not per-run).
 - Store metadata JSON in `clips.db`.
 
@@ -155,8 +167,9 @@ clipper/
 - One page: card per `pending_review` clip showing:
   - Video player (the rendered MP4)
   - Open-full-video and download links for the rendered MP4
-  - `why_it_works` + `virality_score`
+  - `virality_score`, safety flags, source-finding hints, variants, and posting plan
   - Editable captions/hashtags per platform (pre-filled; edit optional)
+  - AI rewrite buttons: funnier, more debate-driving, shorter TikTok, safer
   - Per-platform toggles (post to YT? IG? TikTok?)
   - ✓ Approve  /  ✗ Reject buttons
 - Top-level queue summary shows ready-to-review clips, approved clips, posted clips, and same-day trend ideas.
@@ -213,6 +226,7 @@ Put all keys in `.env`. Never commit it.
 clip run        # trend discovery + stages 1–5. ~10–20 min unattended.
 clip trends     # run only the trendjacking discovery lane
 clip review     # opens http://127.0.0.1:8765. View full MP4s, approve/reject, optionally post.
+clip schedule   # suggest posting order for approved clips
 clip post       # CLI fallback for approved clips. YT+IG auto; TikTok → tap publish on phone.
 ```
 Or wire `clip run` to a morning cron job so the queue is ready when you wake up; you just review and post from the dashboard.

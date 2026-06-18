@@ -31,6 +31,7 @@ def cli(ctx: click.Context):
         clip run      # trends → ingest → scout → cut → package (unattended)
         clip trends   # only discover trendjacking opportunities
         clip review   # approve queue at localhost:8765
+        clip schedule # plan the order for approved clips
         clip post     # publish approved clips
     """
     db.init_db()
@@ -161,6 +162,14 @@ def post(cfg: dict, clip_id: int | None):
     """Publish all approved clips (YT + IG auto; TikTok → draft)."""
     from pipeline import post as poster
     poster.run(cfg, clip_id=clip_id)
+
+
+@cli.command(name="schedule")
+@click.pass_obj
+def schedule_cmd(cfg: dict):
+    """Suggest posting order/slots for approved clips."""
+    from pipeline import schedule
+    schedule.apply_schedule(cfg)
 
 
 @cli.command(name="purge")

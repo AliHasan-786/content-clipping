@@ -126,7 +126,21 @@ def _trend_source_label(row: dict) -> str:
     return row.get("source_kind") or "trend"
 
 
+def _trend_evidence(row: dict) -> dict:
+    raw = row.get("evidence_json")
+    if raw:
+        return db.jloads(raw) or {}
+    return row.get("evidence") or {}
+
+
+def _trend_ai(row: dict) -> dict:
+    return _trend_evidence(row).get("ai_triage") or {}
+
+
 def _trend_hook(row: dict) -> str:
+    ai_hook = _trend_ai(row).get("hook")
+    if ai_hook:
+        return str(ai_hook)[:140]
     kind = row.get("source_kind") or "trend"
     if kind == "reddit_discussion":
         return "The comment section is already split on this"
@@ -139,8 +153,15 @@ def _trend_metadata(row: dict, cfg: dict) -> dict:
     title = (row.get("title") or "Viral internet moment").strip()
     short_title = title[:82].rstrip()
     source = _trend_source_label(row)
+    triage = _trend_ai(row)
+    safety = triage.get("safety_review") or {}
+    conversation = (
+        (triage.get("comment_mining") or {}).get("best_comment_prompt")
+        or triage.get("conversation_prompt")
+        or _trend_hook(row)
+    )
     hashtags = ["#viral", "#funny", "#internetculture", "#streamers", "#gaming"]
-    return {
+    meta = {
         "youtube": {
             "title": short_title,
             "description": (
@@ -158,14 +179,29 @@ def _trend_metadata(row: dict, cfg: dict) -> dict:
         },
         "instagram": {
             "caption": (
-                f"{_trend_hook(row)}\n\n"
+                f"{conversation}\n\n"
                 "Screenshot-card commentary, with visible source attribution."
             ),
             "hashtags": hashtags,
             "first_comment_hashtags": ["#reels", "#popculture", "#sports", "#livestreamfails"],
             "enabled": True,
         },
+        "variants": {
+            "hooks": [h for h in [_trend_hook(row), title[:100], triage.get("conversation_prompt")] if h],
+            "tiktok_captions": [c for c in [conversation, triage.get("hook")] if c],
+        },
+        "safety_review": safety or {
+            "status": "ok",
+            "flags": [],
+            "note": "screenshot-card trend with visible attribution",
+        },
+        "source_search": {
+            "queries": triage.get("source_search_queries") or [],
+            "candidates": triage.get("source_candidates") or [],
+        },
+        "trend_ai": triage,
     }
+    return meta
 
 
 def _render_trend_card_image(cfg: dict, row: dict, out_png: Path) -> None:
@@ -241,9 +277,15 @@ def _render_trend_card_image(cfg: dict, row: dict, out_png: Path) -> None:
     draw.line((card_x0 + 56, y, card_x1 - 56, y), fill=(223, 229, 238), width=3)
     y += 54
 
+    triage = _trend_ai(row)
     prompt = "Question: hilarious moment, valid outrage, or is everyone overreacting?"
     if row.get("source_kind") == "reddit_discussion":
         prompt = "Question: is the top comment right, or is the thread missing the point?"
+    prompt = (
+        (triage.get("comment_mining") or {}).get("best_comment_prompt")
+        or triage.get("conversation_prompt")
+        or prompt
+    )
     _draw_wrapped(draw, (card_x0 + 56, y), prompt, body_font, (26, 32, 44), card_x1 - card_x0 - 112, line_gap=12, max_lines=4)
 
     footer = f"Source shown for attribution: {source} - {row.get('url')}"
@@ -346,8 +388,8 @@ def render_approved_trends(cfg: dict, trend_id: int | None = None) -> int:
                     "end_s": duration,
                     "format": "screenshot_card",
                     "hook": _trend_hook(t),
-                    "vo_script": "",
-                    "why_it_works": t.get("treatment"),
+                    "vo_script": _trend_ai(t).get("vo_script") or "",
+                    "why_it_works": "",
                     "virality_score": t.get("trend_score"),
                     "rendered_path": str(out),
                     "metadata_json": db.jdumps(_trend_metadata(t, cfg)),

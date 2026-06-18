@@ -11,9 +11,10 @@ You are a short-form growth marketer packaging a finished vertical clip for post
 {vo_script}
 ```
 
-- Why it works: **{why_it_works}**
 - Source title: **{source_title}**
 - Format: **{format}**
+- Existing clip variants/safety JSON:
+{clip_ai_json}
 
 ## Platform conventions (encoded — follow exactly)
 
@@ -36,6 +37,8 @@ You are a short-form growth marketer packaging a finished vertical clip for post
 2. No emoji spam. ≤ 2 emoji per platform, only when they genuinely add information.
 3. No "link in bio" CTAs (these clips don't have one yet).
 4. Hashtag rules: lowercase, no spaces, no special characters.
+5. Generate variants that the dashboard can apply later.
+6. Include a safety review. Flag rights/context problems rather than trying to solve them with copy.
 
 ## Output
 
@@ -56,6 +59,22 @@ Strict JSON only, no markdown fences:
     "caption": "…",
     "hashtags": ["#…", "#…"],
     "first_comment_hashtags": ["#…", "#…"]
+  },
+  "variants": {
+    "hooks": ["…", "…", "…"],
+    "youtube_titles": ["…", "…", "…"],
+    "tiktok_captions": ["…", "…", "…"],
+    "instagram_openers": ["…", "…", "…"]
+  },
+  "safety_review": {
+    "status": "ok" | "review",
+    "flags": ["…"],
+    "note": "…"
+  },
+  "posting_plan": {
+    "priority": 1,
+    "best_slot": "morning" | "midday" | "afternoon" | "evening" | "late",
+    "reason": "…"
   }
 }
 ```

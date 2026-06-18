@@ -73,6 +73,10 @@ def _posting_status(cfg: dict) -> list[dict]:
     return platforms
 
 
+def _ai_ready(cfg: dict) -> bool:
+    return bool(cfg.get("ai", {}).get("enabled", True) and os.environ.get("ANTHROPIC_API_KEY"))
+
+
 def _queue_trend_source_candidate(trend_id: int) -> None:
     with db.connect() as conn:
         row = conn.execute(
@@ -169,6 +173,7 @@ def index(request: Request, show: str = "pending_review", notice: Optional[str] 
             "post_ready_count": sum(1 for p in posting_status if p["ready"]),
             "recent_posts": [dict(r) for r in recent_posts],
             "notice": notice,
+            "ai_ready": _ai_ready(cfg),
         },
     )
 
@@ -234,6 +239,30 @@ async def reject(clip_id: int, request: Request):
     return RedirectResponse(url="/", status_code=303)
 
 
+@app.post("/clip/{clip_id}/ai-assist")
+async def ai_assist(clip_id: int, request: Request):
+    cfg = _load_config()
+    if not _ai_ready(cfg):
+        return RedirectResponse(
+            url=f"/?show=pending_review&notice=ai_needs_key#clip-{clip_id}",
+            status_code=303,
+        )
+    form = await request.form()
+    action = (form.get("action") or "Generate better caption variants").strip()
+    try:
+        from pipeline import package
+        package.rewrite_clip_metadata(cfg, clip_id, action)
+        return RedirectResponse(
+            url=f"/?show=pending_review&notice=ai_updated#clip-{clip_id}",
+            status_code=303,
+        )
+    except Exception as exc:
+        return RedirectResponse(
+            url=f"/?show=pending_review&notice=ai_failed#clip-{clip_id}",
+            status_code=303,
+        )
+
+
 @app.post("/post-approved")
 def post_approved():
     cfg = _load_config()
@@ -246,6 +275,18 @@ def post_approved():
     if posted:
         return RedirectResponse(url="/?show=posted&notice=posted", status_code=303)
     return RedirectResponse(url="/?show=approved&notice=post_attempt_failed", status_code=303)
+
+
+@app.post("/schedule-approved")
+def schedule_approved():
+    cfg = _load_config()
+    try:
+        from pipeline import schedule
+        updated = schedule.apply_schedule(cfg)
+    except Exception:
+        updated = 0
+    notice = "schedule_updated" if updated else "schedule_empty"
+    return RedirectResponse(url=f"/?show=approved&notice={notice}", status_code=303)
 
 
 @app.post("/trend/{trend_id}/approve")
