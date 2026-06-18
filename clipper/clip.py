@@ -164,6 +164,71 @@ def post(cfg: dict, clip_id: int | None):
     poster.run(cfg, clip_id=clip_id)
 
 
+@cli.group(name="auth")
+def auth_cmd():
+    """Set up and verify local API credentials."""
+
+
+@auth_cmd.command(name="status")
+@click.pass_context
+def auth_status_cmd(ctx: click.Context):
+    """Show platform credential readiness without printing secrets."""
+    from pipeline import auth
+
+    ready = auth.print_status(ctx.find_root().obj)
+    click.echo(f"\nready credential groups: {ready}")
+
+
+@auth_cmd.command(name="youtube")
+@click.option("--client-secret", type=click.Path(exists=True, dir_okay=False), help="Downloaded Google OAuth client JSON.")
+@click.option("--login", is_flag=True, help="Run YouTube OAuth login and save the upload token.")
+@click.pass_context
+def auth_youtube_cmd(ctx: click.Context, client_secret: str | None, login: bool):
+    """Install YouTube OAuth client JSON and optionally run login."""
+    from pipeline import auth
+
+    if client_secret:
+        dest = auth.install_youtube_client_secret(client_secret)
+        click.echo(f"YouTube client secret installed -> {dest}")
+    if login:
+        token = auth.youtube_login()
+        click.echo(f"YouTube OAuth token saved -> {token}")
+    if not client_secret and not login:
+        auth.print_status(ctx.find_root().obj)
+
+
+@auth_cmd.command(name="tiktok")
+@click.option("--client-key", help="TikTok app client key.")
+@click.option("--client-secret", help="TikTok app client secret.")
+@click.option("--access-token", help="TikTok user access token from Login Kit OAuth.")
+@click.option("--open-id", help="TikTok user open_id from Login Kit OAuth.")
+@click.pass_context
+def auth_tiktok_cmd(
+    ctx: click.Context,
+    client_key: str | None,
+    client_secret: str | None,
+    access_token: str | None,
+    open_id: str | None,
+):
+    """Save TikTok credentials to clipper/.env."""
+    from pipeline import auth
+
+    if any([client_key, client_secret, access_token, open_id]):
+        auth.set_tiktok_credentials(client_key, client_secret, access_token, open_id)
+        click.echo("TikTok credentials updated in clipper/.env")
+    auth.print_status(ctx.find_root().obj)
+
+
+@auth_cmd.command(name="anthropic")
+@click.option("--api-key", prompt=True, hide_input=True, help="Anthropic API key.")
+def auth_anthropic_cmd(api_key: str):
+    """Save the Anthropic API key used for AI scouting/packaging."""
+    from pipeline import auth
+
+    auth.set_anthropic_key(api_key)
+    click.echo("Anthropic API key saved in clipper/.env")
+
+
 @cli.command(name="schedule")
 @click.pass_obj
 def schedule_cmd(cfg: dict):

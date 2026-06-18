@@ -25,12 +25,10 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 import db  # noqa: E402
+from pipeline import auth  # noqa: E402
 
 
 # ---------- YouTube ---------------------------------------------------------
-
-YT_SCOPES = ["https://www.googleapis.com/auth/youtube.upload"]
-
 
 def _yt_service():
     from google.auth.transport.requests import Request
@@ -38,12 +36,12 @@ def _yt_service():
     from google_auth_oauthlib.flow import InstalledAppFlow
     from googleapiclient.discovery import build
 
-    cs = Path(os.environ.get("YT_CLIENT_SECRETS_FILE", "secrets/yt_client_secret.json"))
-    tok = Path(os.environ.get("YT_TOKEN_FILE", "secrets/yt_token.json"))
+    cs = auth.youtube_secret_path()
+    tok = auth.youtube_token_path()
 
     creds = None
     if tok.exists():
-        creds = Credentials.from_authorized_user_file(str(tok), YT_SCOPES)
+        creds = Credentials.from_authorized_user_file(str(tok), auth.YT_SCOPES)
     if not creds or not creds.valid:
         if creds and creds.expired and creds.refresh_token:
             creds.refresh(Request())
@@ -53,7 +51,7 @@ def _yt_service():
                     f"YouTube OAuth client_secrets file missing at {cs}. "
                     "Create one in Google Cloud Console → OAuth desktop app credentials."
                 )
-            flow = InstalledAppFlow.from_client_secrets_file(str(cs), YT_SCOPES)
+            flow = InstalledAppFlow.from_client_secrets_file(str(cs), auth.YT_SCOPES)
             creds = flow.run_local_server(port=0)
         tok.parent.mkdir(parents=True, exist_ok=True)
         tok.write_text(creds.to_json())

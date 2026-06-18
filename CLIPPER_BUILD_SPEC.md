@@ -217,9 +217,13 @@ Core instructions to encode:
 ## 4. API / account setup checklist (do in this order)
 
 1. **YouTube Data API v3** — Google Cloud project → enable API → OAuth desktop credentials → run once to get refresh token. *Free.* (Optionally request quota increase later.)
+   - Save/upload the downloaded OAuth JSON with `clip auth youtube --client-secret /path/to/client_secret.json`.
+   - Then run `clip auth youtube --login` once to create `clipper/secrets/yt_token.json`.
 2. **Instagram** — Convert IG to **Business/Creator** → link to a **Facebook Page** → Meta Developer app → Graph API → Instagram Content Publishing permission → long-lived access token. *Free, ~30 min, slightly fiddly.*
 3. **TikTok** — developers.tiktok.com → create app → request `video.upload` (draft, instant) now; apply for `video.publish` (direct post) audit later (2–6 wks). *Free.*
+   - Save OAuth values with `clip auth tiktok --client-key ... --client-secret ... --access-token ... --open-id ...`.
 4. **Claude API** — console.anthropic.com → API key. *Pay per use; this pipeline is cheap — pennies per clip.*
+   - Save locally with `clip auth anthropic`.
 5. **TTS** — start with local `kokoro`/`piper` (free). ElevenLabs key optional for premium voice.
 6. **Local tools** — `brew install yt-dlp ffmpeg` + build/install `whisper.cpp` (or `pip install faster-whisper`).
 
@@ -231,6 +235,7 @@ Put all keys in `.env`. Never commit it.
 
 ```bash
 clip run        # trend discovery + stages 1–5. ~10–20 min unattended.
+clip auth status # verify API/posting credentials without printing secrets
 clip trends     # run only the trendjacking discovery lane
 clip review     # opens http://127.0.0.1:8765. View full MP4s, approve/reject, optionally post.
 clip schedule   # suggest posting order for approved clips

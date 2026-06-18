@@ -18,6 +18,14 @@ Use Google Cloud + YouTube Data API v3 OAuth.
 5. Download the client secret JSON to `clipper/secrets/yt_client_secret.json`.
 6. Run `clip post` once after approving a clip; the local OAuth browser flow saves `clipper/secrets/yt_token.json`.
 
+Local helper commands:
+
+```bash
+clip auth youtube --client-secret ~/Downloads/client_secret.json
+clip auth youtube --login
+clip auth status
+```
+
 Repo env:
 
 ```env
@@ -39,6 +47,13 @@ Use TikTok for Developers + Content Posting API.
 3. Request/enable `video.upload` for draft/inbox uploads.
 4. Use Login Kit OAuth to get a user access token and open ID for your account.
 5. Optional later: pass TikTok audit for `video.publish` direct posting. Without audit, uploaded content is private/draft-style and needs in-app completion.
+
+Local helper command:
+
+```bash
+clip auth tiktok --client-key ... --client-secret ... --access-token ... --open-id ...
+clip auth status
+```
 
 Repo env:
 

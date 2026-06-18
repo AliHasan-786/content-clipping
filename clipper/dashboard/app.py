@@ -45,33 +45,9 @@ def _load_config() -> dict:
 
 
 def _posting_status(cfg: dict) -> list[dict]:
-    def env_path_exists(name: str, default: str) -> bool:
-        return Path(os.environ.get(name, default)).exists()
+    from pipeline import auth
 
-    post_cfg = cfg.get("post", {})
-    platforms = [
-        {
-            "name": "YouTube",
-            "enabled": bool(post_cfg.get("youtube", {}).get("enabled")),
-            "configured": env_path_exists("YT_TOKEN_FILE", "secrets/yt_token.json"),
-            "needs": "OAuth token file from first YouTube login",
-        },
-        {
-            "name": "Instagram",
-            "enabled": bool(post_cfg.get("instagram", {}).get("enabled")),
-            "configured": all(os.environ.get(k) for k in ["IG_USER_ID", "IG_ACCESS_TOKEN", "IG_PUBLIC_CLIP_BASE"]),
-            "needs": "IG_USER_ID, IG_ACCESS_TOKEN, IG_PUBLIC_CLIP_BASE",
-        },
-        {
-            "name": "TikTok",
-            "enabled": bool(post_cfg.get("tiktok", {}).get("enabled")),
-            "configured": bool(os.environ.get("TIKTOK_ACCESS_TOKEN")),
-            "needs": "TIKTOK_ACCESS_TOKEN",
-        },
-    ]
-    for platform in platforms:
-        platform["ready"] = bool(platform["enabled"] and platform["configured"])
-    return platforms
+    return [p for p in auth.status(cfg) if p["key"] in {"youtube", "instagram", "tiktok"}]
 
 
 def _ai_ready(cfg: dict) -> bool:
