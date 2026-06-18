@@ -11,6 +11,10 @@
 #   rss:           https://example.com/feed.xml
 #
 # Lines starting with `#` are comments. Blank lines ignored.
+#
+# Trending tweets / Reddit posts / evergreen viral moments belong in
+# TREND_SOURCES.md instead. This allowlist is for source media that can be
+# downloaded/transcribed into actual clips.
 
 # --- Seed examples (replace with your actual approved sources) ---
 # yt_handle: @AllInPodcast            # AI/tech commentary — clip-friendly culture

@@ -9,6 +9,42 @@ source:
   # Maximum number of source candidates to consider per run (after dedup + rank).
   max_candidates: 12
 
+trend:
+  enabled: true
+  # Trend opportunities are ideas/safe-source leads, not automatic reposts.
+  # They still require review before rendering/posting.
+  lookback_hours: 24
+  max_opportunities: 25
+  reddit_limit_per_source: 25
+  min_trend_score: 45
+  # Safe-by-default formats. These can become screenshot/commentary cards.
+  allowed_source_kinds:
+    - official_clip
+    - licensed_clip
+    - public_domain_clip
+    - creator_owned_clip
+    - social_text
+    - reddit_discussion
+    - news_article
+  # Interesting, but owner must confirm rights/context before use.
+  review_required_source_kinds:
+    - streamer_clip
+    - movie_clip
+    - sports_highlight
+    - concert_clip
+    - random_video
+    - viral_clip
+    - reddit_linked_video
+  # Never queue these for reposting.
+  blocked_source_kinds:
+    - independent_creator_repost
+    - raw_tiktok_repost
+    - private_person_video
+  screenshot_card:
+    default_music_bed: "lofi_news_bed"
+    require_visible_attribution: true
+    max_text_chars: 420
+
 ingest:
   # How many of the top-ranked candidates to actually download + transcribe per run.
   max_daily_ingest: 5

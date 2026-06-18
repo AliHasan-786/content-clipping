@@ -11,11 +11,13 @@ Owner runs it daily. Daily human effort target: **~5 minutes** (approve queue + 
 - **Model:** Faceless, AI-voiceover. The voiceover ALWAYS adds information the source footage didn't have (ranking, context, "why it matters"). It NEVER just narrates what's on screen. This is the suppression defense and the monetization unlock — it is non-negotiable in the prompt design.
 - **Niche bias (chosen):** **"What just happened" — fast-turn commentary on trending moments in tech / AI / internet culture.** Rationale: high CPM, clip-friendly + fair-use-friendly source supply, owner can sanity-check the take instantly, and a *loose* niche still gives the algorithm an identity while leaving room to ride trends. The system chases trends *within* this lane rather than chasing everything.
 - **Format priority:** (1) Ranked list ("3 things everyone missed about X"), (2) Context explainer over footage. Both are fully scriptable by AI with zero owner input.
+- **Trendjacking lane:** In addition to long-form source clipping, the system should find proven/trending moments that already have demand: iconic streamer/YouTuber moments, official event clips, evergreen funny clips, and same-day discourse from Reddit/X. This is a signal + packaging lane, not a license to rip. The system can render screenshot/commentary cards for public posts and can queue official/licensed/owned clips, but ambiguous movie/sports/concert/streamer footage requires owner rights review before rendering.
 - **Posting reality:**
   - YouTube Shorts → official Data API v3 → fully automated. ✅
   - Instagram Reels → Graph API (requires Business/Creator account linked to a FB Page) → fully automated. ✅
   - TikTok → Content Posting API. Unaudited app = **draft/SELF_ONLY only**; owner taps publish in-app (~10s/clip). Build the audited `direct-post` path behind a feature flag for later. ✅(with manual tap)
-- **Legal posture:** Source list biased to clip-encouraged / CC / news-commentary sources. Transformative voiceover layer is mandatory. No re-uploading raw viral clips. A `SOURCES.md` allowlist gates ingestion — nothing gets clipped unless its source is on the allowlist.
+- **Legal posture:** Source list biased to clip-encouraged / CC / news-commentary sources. Transformative voiceover layer is mandatory. No re-uploading raw viral clips. A `SOURCES.md` allowlist gates ingestion — nothing gets clipped unless its source is on the allowlist. `TREND_SOURCES.md` separately gates trendjacking opportunities and classifies each as `allowed`, `review_required`, or `blocked`.
+- **No independent-creator ripping:** The system must not repost an independent TikTok/Reels/Shorts creator's viral video just because it is working. It can use that as a signal to find an official/licensed alternative or make a commentary/screenshot card if the source is a public text post and attribution is visible.
 
 ---
 
@@ -26,12 +28,12 @@ Owner runs it daily. Daily human effort target: **~5 minutes** (approve queue + 
             │            orchestrator (CLI: `clip run`)         │
             └─────────────────────────────────────────────────┘
                                   │
-   1 SOURCE ──► 2 INGEST ──► 3 SCOUT ──► 4 CUT ──► 5 PACKAGE ──► 6 REVIEW ──► 7 POST
-   watchlist     yt-dlp +     Claude      ffmpeg     Claude        local web    YT API
-   poll          whisper.cpp  picks       vertical   per-platform  dashboard    IG API
-   (allowlist)   transcript   moments +   + captions captions +    approve/     TikTok
-                              writes      + TTS VO    hashtags      reject       (draft)
-                              VO script
+   0 TREND ──► 1 SOURCE ──► 2 INGEST ──► 3 SCOUT ──► 4 CUT ──► 5 PACKAGE ──► 6 REVIEW ──► 7 POST
+   Reddit/X     watchlist     yt-dlp +     Claude      ffmpeg     Claude        local web    YT API
+   discourse    poll          whisper.cpp  picks       vertical   per-platform  dashboard    IG API
+   + iconic     (allowlist)   transcript   moments +   + captions captions +    approve/     TikTok
+   moments                               writes      + TTS VO    hashtags      reject       (draft)
+   rights-gated                          VO script
 ```
 
 **Tech stack (all local, all free/cheap):**
@@ -51,7 +53,9 @@ clipper/
 ├── clip.py                 # CLI entrypoint (run, review, post, status)
 ├── config.yaml             # all tunables
 ├── SOURCES.md              # allowlist of approved sources (HUMAN-EDITED ONLY)
+├── TREND_SOURCES.md        # allowlist of trend/discourse sources + rights labels
 ├── pipeline/
+│   ├── trend.py            # find trendjacking opportunities, rights-gated
 │   ├── source.py           # poll watchlist, find trending candidates
 │   ├── ingest.py           # yt-dlp download + whisper transcribe
 │   ├── scout.py            # Claude: pick moments + write VO script
@@ -83,6 +87,26 @@ clipper/
 - Dedup against `clips.db` (never process the same source video twice).
 - Output: ranked list of candidate source URLs → write to `candidates` table.
 
+### Stage 0 — TREND (`pipeline/trend.py`)
+- Read `TREND_SOURCES.md` allowlist. Supported inputs:
+  - `reddit_hot` / `reddit_top`: subreddits whose posts/comments are useful conversation starters.
+  - `rss`: feeds for news/discourse sources or Reddit RSS.
+  - `manual_url`: one-off X/Twitter, Reddit, official clip, licensed clip, or evergreen moment URL that the owner wants tracked.
+- Discover same-day opportunities and score by recency + engagement velocity:
+  - Reddit: upvotes, comments, age.
+  - RSS/manual: recency plus optional manually supplied score/comment signals.
+- Classify every opportunity by `source_kind`:
+  - **Allowed:** `social_text`, `reddit_discussion`, `official_clip`, `licensed_clip`, `public_domain_clip`, `creator_owned_clip`, `news_article`.
+  - **Review-required:** `streamer_clip`, `movie_clip`, `sports_highlight`, `concert_clip`, `random_video`, `viral_clip`, `reddit_linked_video`.
+  - **Blocked:** `independent_creator_repost`, `raw_tiktok_repost`, `private_person_video`.
+- Output to `trend_opportunities` table with:
+  - `trend_score`, `rights_status`, `recommended_format`, `treatment`, `evidence_json`.
+- Recommended formats:
+  - `screenshot_card`: for X/Twitter-style posts, Reddit posts/comments, or news/discourse snippets. Must include visible attribution, background music, and a value-add caption/VO/question.
+  - `commentary_clip`: only for official/licensed/public-domain/owned clips, with transformative VO.
+  - `rights_review`: owner must confirm source rights or replace with official/licensed source.
+  - `do_not_repost`: blocked; use only as a trend signal.
+
 ### Stage 2 — INGEST (`pipeline/ingest.py`)
 - `yt-dlp` download top K candidates (config: `max_daily_ingest`, default 5) at 1080p.
 - Transcribe with whisper.cpp → word-level JSON timestamps → `data/transcripts/`.
@@ -107,6 +131,11 @@ clipper/
 - Burn in **word-level animated captions** (ASS format, karaoke `\k` timing from whisper words for original speech; styled bold captions for VO segments). Big, high-contrast, safe-zone-aware (avoid platform UI overlap zones).
 - Add a 0.5s hook text card at the very start (the `hook` line) — drives 3-second retention.
 - Output final MP4 → `data/clips/` + register in `clips.db` with status `pending_review`.
+- For `screenshot_card` trend opportunities, render a vertical card instead of source footage:
+  - screenshot or reconstructed text card with visible source/author attribution,
+  - subtle background motion/music,
+  - optional VO that adds context/stakes,
+  - comment-bait prompt that invites disagreement without fabricating facts.
 
 ### Stage 5 — PACKAGE (`pipeline/package.py`)
 - Feed clip context to Claude using `prompts/package.md`. Returns per-platform metadata:
@@ -173,7 +202,8 @@ Put all keys in `.env`. Never commit it.
 ## 5. Daily operation (the whole owner workflow)
 
 ```bash
-clip run        # stages 1–5: ingest → scout → cut → package. ~10–20 min unattended.
+clip run        # trend discovery + stages 1–5. ~10–20 min unattended.
+clip trends     # run only the trendjacking discovery lane
 clip review     # opens localhost:8765. Approve/reject. ~5 min.
 clip post       # publishes approved. YT+IG auto; TikTok → tap publish on phone.
 ```
@@ -185,11 +215,12 @@ Or wire `clip run` to a morning cron job so the queue is ready when you wake up;
 
 - **M1 — Skeleton:** repo, `config.yaml`, SQLite schema, `clip` CLI with stub stages, `.env` loading. Verify `clip status` works.
 - **M2 — Ingest path:** `source.py` + `ingest.py`. Get a real trending video downloaded + transcribed end to end.
-- **M3 — Scout:** `scout.py` + `prompts/scout.md`. Feed a transcript, get back good clip candidates + VO scripts. Iterate on the prompt until clips are genuinely good.
-- **M4 — Cut:** `cut.py`. Vertical reframe + burned captions + TTS VO muxing. This is the heaviest ffmpeg work — expect iteration.
-- **M5 — Package + Review:** `package.py` + dashboard. Full queue visible and approvable.
-- **M6 — Post:** YouTube first (easiest), then Instagram, then TikTok draft path.
-- **M7 — Polish:** cron, auto-purge, reject-reason feedback loop, multi-account support (run the same pipeline for a 2nd niche/account — this is the real leverage).
+- **M3 — Trend lane:** `trend.py` + `TREND_SOURCES.md` + `prompts/trend.md`. Find daily Reddit/X/official-clip opportunities, classify rights posture, and queue screenshot-card/commentary treatments without raw creator ripping.
+- **M4 — Scout:** `scout.py` + `prompts/scout.md`. Feed a transcript, get back good clip candidates + VO scripts. Iterate on the prompt until clips are genuinely good.
+- **M5 — Cut:** `cut.py`. Vertical reframe + burned captions + TTS VO muxing. This is the heaviest ffmpeg work — expect iteration. Add screenshot-card rendering for trend opportunities.
+- **M6 — Package + Review:** `package.py` + dashboard. Full clip + trend queue visible and approvable.
+- **M7 — Post:** YouTube first (easiest), then Instagram, then TikTok draft path.
+- **M8 — Polish:** cron, auto-purge, reject-reason feedback loop, multi-account support (run the same pipeline for a 2nd niche/account — this is the real leverage).
 
 Build and test each milestone before moving on. Use real content from `SOURCES.md` at every step.
 

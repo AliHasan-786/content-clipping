@@ -28,7 +28,8 @@ def cli(ctx: click.Context):
     """Faceless Clip Pipeline.
 
     Daily flow:
-        clip run      # ingest → scout → cut → package (unattended)
+        clip run      # trends → ingest → scout → cut → package (unattended)
+        clip trends   # only discover trendjacking opportunities
         clip review   # approve queue at localhost:8765
         clip post     # publish approved clips
     """
@@ -51,6 +52,14 @@ def status(cfg: dict):
             "SELECT id, video_id, status, virality_score, created_at "
             "FROM clips ORDER BY id DESC LIMIT 10"
         ).fetchall()
+        trend_counts = conn.execute(
+            "SELECT status, rights_status, COUNT(*) c "
+            "FROM trend_opportunities GROUP BY status, rights_status"
+        ).fetchall()
+        recent_trends = conn.execute(
+            "SELECT id, source_kind, rights_status, trend_score, title, discovered_at "
+            "FROM trend_opportunities ORDER BY id DESC LIMIT 10"
+        ).fetchall()
 
     click.echo(f"niche: {cfg['niche']}")
     click.echo("\ncandidates:")
@@ -65,20 +74,35 @@ def status(cfg: dict):
             f"  #{r['id']:<4} {r['video_id']:<14} {r['status']:<14} "
             f"score={r['virality_score']!s:<5} {r['created_at']}"
         )
+    click.echo("\ntrend opportunities:")
+    for r in trend_counts:
+        label = f"{r['status']}:{r['rights_status']}"
+        click.echo(f"  {label:<24} {r['c']}")
+    click.echo("\nrecent trends:")
+    for r in recent_trends:
+        title = (r["title"] or "")[:72]
+        click.echo(
+            f"  #{r['id']:<4} {r['source_kind']:<18} {r['rights_status']:<15} "
+            f"score={r['trend_score']!s:<4} {title}"
+        )
 
 
 @cli.command()
+@click.option("--skip-trends", is_flag=True, help="Skip trendjacking discovery lane.")
 @click.option("--skip-source",  is_flag=True, help="Skip stage 1 (use existing candidates).")
 @click.option("--skip-ingest", is_flag=True, help="Skip stage 2 (use existing transcripts).")
 @click.option("--skip-scout",  is_flag=True, help="Skip stage 3.")
 @click.option("--skip-cut",    is_flag=True, help="Skip stage 4.")
 @click.option("--skip-package",is_flag=True, help="Skip stage 5.")
 @click.pass_obj
-def run(cfg: dict, skip_source: bool, skip_ingest: bool, skip_scout: bool,
+def run(cfg: dict, skip_trends: bool, skip_source: bool, skip_ingest: bool, skip_scout: bool,
         skip_cut: bool, skip_package: bool):
-    """Run stages 1–5: source → ingest → scout → cut → package."""
-    from pipeline import source, ingest, scout, cut, package
+    """Run trend discovery + stages 1–5: source → ingest → scout → cut → package."""
+    from pipeline import trend, source, ingest, scout, cut, package
 
+    if not skip_trends:
+        click.echo("→ trend lane: discover")
+        trend.run(cfg)
     if not skip_source:
         click.echo("→ stage 1: source")
         source.run(cfg)
@@ -95,6 +119,28 @@ def run(cfg: dict, skip_source: bool, skip_ingest: bool, skip_scout: bool,
         click.echo("→ stage 5: package")
         package.run(cfg)
     click.echo("done. → clip review")
+
+
+@cli.command(name="trends")
+@click.option("--limit", type=int, default=10, help="How many recent opportunities to print.")
+@click.pass_obj
+def trends_cmd(cfg: dict, limit: int):
+    """Discover daily trendjacking opportunities with rights gating."""
+    from pipeline import trend
+
+    trend.run(cfg)
+    rows = trend.recent(limit=limit)
+    if not rows:
+        click.echo("no trend opportunities yet")
+        return
+    click.echo("\nrecent trend opportunities:")
+    for r in rows:
+        click.echo(
+            f"  #{r['id']:<4} score={r['trend_score']:<3} "
+            f"{r['rights_status']:<15} {r['recommended_format']:<16} "
+            f"{(r['title'] or '')[:72]}"
+        )
+        click.echo(f"       {r['url']}")
 
 
 @cli.command()

@@ -67,9 +67,34 @@ CREATE TABLE IF NOT EXISTS posts (
     FOREIGN KEY (clip_id) REFERENCES clips(id)
 );
 
+CREATE TABLE IF NOT EXISTS trend_opportunities (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    canonical_id        TEXT    NOT NULL UNIQUE,
+    source_type         TEXT    NOT NULL,
+    source_id           TEXT    NOT NULL,
+    source_kind         TEXT    NOT NULL,
+    url                 TEXT    NOT NULL,
+    title               TEXT,
+    author              TEXT,
+    published_at        TEXT,
+    score               INTEGER,
+    comments            INTEGER,
+    velocity            REAL,
+    trend_score         INTEGER,
+    rights_status       TEXT    NOT NULL,
+    recommended_format  TEXT    NOT NULL,
+    treatment           TEXT,
+    evidence_json       TEXT,
+    status              TEXT    NOT NULL DEFAULT 'new',
+    discovered_at       TEXT    NOT NULL DEFAULT (datetime('now')),
+    notes               TEXT
+);
+
 CREATE INDEX IF NOT EXISTS idx_candidates_status ON candidates(status);
 CREATE INDEX IF NOT EXISTS idx_clips_status     ON clips(status);
 CREATE INDEX IF NOT EXISTS idx_posts_clip       ON posts(clip_id);
+CREATE INDEX IF NOT EXISTS idx_trends_status    ON trend_opportunities(status);
+CREATE INDEX IF NOT EXISTS idx_trends_score     ON trend_opportunities(trend_score);
 """
 
 
@@ -103,6 +128,18 @@ def upsert_candidate(conn: sqlite3.Connection, row: dict[str, Any]) -> bool:
     if cur.fetchone():
         return False
     insert(conn, "candidates", row)
+    return True
+
+
+def upsert_trend_opportunity(conn: sqlite3.Connection, row: dict[str, Any]) -> bool:
+    """Returns True if a new row was inserted, False if it already existed."""
+    cur = conn.execute(
+        "SELECT 1 FROM trend_opportunities WHERE canonical_id = ?",
+        (row["canonical_id"],),
+    )
+    if cur.fetchone():
+        return False
+    insert(conn, "trend_opportunities", row)
     return True
 
 

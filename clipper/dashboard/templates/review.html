@@ -30,6 +30,35 @@
     text-align: center; color: var(--muted); padding: 80px 0;
     border: 1px dashed var(--line); border-radius: 12px;
   }
+  .section-title {
+    display: flex; align-items: baseline; justify-content: space-between;
+    gap: 12px; margin: 0 0 14px;
+  }
+  .section-title h2 { margin: 0; font-size: 15px; letter-spacing: .02em; }
+  .section-title .meta-line { margin-top: 0; }
+  .trend-grid { display: grid; gap: 12px; margin-bottom: 24px; }
+  .trend-card {
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: 10px; padding: 14px;
+  }
+  .trend-card.blocked { opacity: .78; }
+  .trend-head {
+    display: flex; gap: 10px; align-items: center; justify-content: space-between;
+    margin-bottom: 8px;
+  }
+  .trend-title { margin: 0; font-size: 14px; line-height: 1.35; }
+  .trend-title a { color: var(--text); text-decoration: none; }
+  .trend-title a:hover { color: var(--accent); }
+  .trend-meta {
+    display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
+    color: var(--muted); font-size: 12px; margin-bottom: 8px;
+  }
+  .trend-treatment { color: #cbd5d8; margin: 0 0 8px; }
+  .trend-actions {
+    display: flex; flex-wrap: wrap; gap: 10px; align-items: center;
+    margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line);
+  }
+  .trend-actions form { margin: 0; }
   .card {
     display: grid; grid-template-columns: 320px 1fr; gap: 20px;
     background: var(--panel); border: 1px solid var(--line);
@@ -108,10 +137,63 @@
         {{s}}{% if counts.get(s) %} ({{counts[s]}}){% endif %}
       </a>
     {% endfor %}
+    <a href="#trend-queue">trends{% if trend_counts.get("new") %} ({{trend_counts["new"]}}){% endif %}</a>
   </nav>
 </header>
 
 <main>
+<section id="trend-queue">
+  <div class="section-title">
+    <h2>Trend opportunities</h2>
+    <div class="meta-line">
+      new {{trend_counts.get("new", 0)}} · approved {{trend_counts.get("approved", 0)}} · rejected {{trend_counts.get("rejected", 0)}}
+    </div>
+  </div>
+
+  {% if not trends %}
+    <div class="empty" style="padding: 36px 0; margin-bottom: 24px;">
+      No trend opportunities yet.<br>
+      Run <code>clip trends</code> after adding sources to <code>TREND_SOURCES.md</code>.
+    </div>
+  {% else %}
+    <div class="trend-grid">
+    {% for t in trends %}
+      <div class="trend-card {% if t.rights_status == 'blocked' %}blocked{% endif %}" id="trend-{{t.id}}">
+        <div class="trend-head">
+          <h3 class="trend-title">
+            <a href="{{t.url}}" target="_blank" rel="noopener">{{t.title or t.url}}</a>
+          </h3>
+          <span class="score">{{t.trend_score or 0}}</span>
+        </div>
+        <div class="trend-meta">
+          <span class="status-pill">{{t.rights_status}}</span>
+          <span>{{t.recommended_format}}</span>
+          <span>{{t.source_kind}}</span>
+          {% if t.author %}<span>@{{t.author}}</span>{% endif %}
+          {% if t.comments is not none %}<span>{{t.comments}} comments</span>{% endif %}
+        </div>
+        <p class="trend-treatment">{{t.treatment}}</p>
+        <details>
+          <summary>Evidence</summary>
+          <pre>{{t.evidence}}</pre>
+        </details>
+        <div class="trend-actions">
+          {% if t.rights_status != "blocked" %}
+            <form method="post" action="/trend/{{t.id}}/approve">
+              <button type="submit" class="primary">Approve treatment</button>
+            </form>
+          {% endif %}
+          <button type="button" class="danger" onclick="rejectTrend({{t.id}})">Reject</button>
+          {% if t.rights_status == "blocked" %}
+            <span class="meta-line">blocked items are trend signals only</span>
+          {% endif %}
+        </div>
+      </div>
+    {% endfor %}
+    </div>
+  {% endif %}
+</section>
+
 {% if not clips %}
   <div class="empty">
     No clips here.<br>
@@ -207,6 +289,17 @@ function rejectClip(id) {
   const f = document.createElement("form");
   f.method = "post";
   f.action = `/clip/${id}/reject`;
+  const r = document.createElement("input");
+  r.name = "reason"; r.value = reason;
+  f.appendChild(r);
+  document.body.appendChild(f);
+  f.submit();
+}
+function rejectTrend(id) {
+  const reason = prompt("Reject reason (optional):") || "";
+  const f = document.createElement("form");
+  f.method = "post";
+  f.action = `/trend/${id}/reject`;
   const r = document.createElement("input");
   r.name = "reason"; r.value = reason;
   f.appendChild(r);

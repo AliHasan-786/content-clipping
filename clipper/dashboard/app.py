@@ -8,6 +8,8 @@ the per-card form posts. The owner's entire daily job lives here.
   POST /clip/{id}/save   → persist edited per-platform metadata + toggles
   POST /clip/{id}/approve → mark approved
   POST /clip/{id}/reject  → mark rejected, capture reason
+  POST /trend/{id}/approve → approve non-blocked trend treatment
+  POST /trend/{id}/reject  → reject/dismiss trend opportunity
 """
 from __future__ import annotations
 
@@ -46,6 +48,16 @@ def index(request: Request, show: str = "pending_review"):
         counts = dict((r["status"], r["c"]) for r in conn.execute(
             "SELECT status, COUNT(*) c FROM clips GROUP BY status"
         ).fetchall())
+        trend_rows = conn.execute(
+            "SELECT * FROM trend_opportunities "
+            "WHERE status IN ('new', 'blocked') "
+            "ORDER BY CASE rights_status "
+            "WHEN 'allowed' THEN 0 WHEN 'review_required' THEN 1 ELSE 2 END, "
+            "trend_score DESC, id DESC LIMIT 25"
+        ).fetchall()
+        trend_counts = dict((r["status"], r["c"]) for r in conn.execute(
+            "SELECT status, COUNT(*) c FROM trend_opportunities GROUP BY status"
+        ).fetchall())
 
     clips = []
     for r in rows:
@@ -53,9 +65,22 @@ def index(request: Request, show: str = "pending_review"):
         d["metadata"] = db.jloads(d.get("metadata_json")) or {}
         clips.append(d)
 
+    trends = []
+    for r in trend_rows:
+        d = dict(r)
+        d["evidence"] = db.jloads(d.get("evidence_json")) or {}
+        trends.append(d)
+
     return templates.TemplateResponse(
         "review.html",
-        {"request": request, "clips": clips, "show": show, "counts": counts},
+        {
+            "request": request,
+            "clips": clips,
+            "show": show,
+            "counts": counts,
+            "trends": trends,
+            "trend_counts": trend_counts,
+        },
     )
 
 
@@ -118,3 +143,30 @@ async def reject(clip_id: int, request: Request):
             (reason, clip_id),
         )
     return RedirectResponse(url="/", status_code=303)
+
+
+@app.post("/trend/{trend_id}/approve")
+def approve_trend(trend_id: int):
+    with db.connect() as conn:
+        row = conn.execute(
+            "SELECT rights_status FROM trend_opportunities WHERE id = ?",
+            (trend_id,),
+        ).fetchone()
+        if not row:
+            raise HTTPException(404, "trend opportunity not found")
+        if row["rights_status"] == "blocked":
+            raise HTTPException(400, "blocked trend opportunities cannot be approved")
+        conn.execute("UPDATE trend_opportunities SET status = 'approved' WHERE id = ?", (trend_id,))
+    return RedirectResponse(url="/#trend-queue", status_code=303)
+
+
+@app.post("/trend/{trend_id}/reject")
+async def reject_trend(trend_id: int, request: Request):
+    form = await request.form()
+    reason = form.get("reason", "").strip() or None
+    with db.connect() as conn:
+        conn.execute(
+            "UPDATE trend_opportunities SET status = 'rejected', notes = ? WHERE id = ?",
+            (reason, trend_id),
+        )
+    return RedirectResponse(url="/#trend-queue", status_code=303)

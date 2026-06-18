@@ -16,8 +16,6 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
-import feedparser
-
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
@@ -172,6 +170,11 @@ def _poll_youtube(src: Source, lookback_hours: int) -> list[Candidate]:
 
 
 def _poll_rss(src: Source, lookback_hours: int) -> list[Candidate]:
+    try:
+        import feedparser
+    except ImportError:
+        raise RuntimeError("feedparser not installed. `pip install -r clipper/requirements.txt`.")
+
     feed = feedparser.parse(src.identifier)
     out: list[Candidate] = []
     for entry in feed.entries[:8]:
