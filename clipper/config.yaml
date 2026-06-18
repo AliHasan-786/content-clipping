@@ -1,0 +1,77 @@
+# Faceless Clip Pipeline configuration.
+# All tunables live here. Edit values, not code.
+
+niche: "What just happened — fast-turn commentary on trending moments in tech / AI / internet culture"
+
+source:
+  # How far back to look when polling each source.
+  lookback_hours: 36
+  # Maximum number of source candidates to consider per run (after dedup + rank).
+  max_candidates: 12
+
+ingest:
+  # How many of the top-ranked candidates to actually download + transcribe per run.
+  max_daily_ingest: 5
+  # yt-dlp format selector. Capping at 1080p keeps disk + transcode cost sane.
+  yt_dlp_format: "bestvideo[height<=1080]+bestaudio/best[height<=1080]"
+  # Auto-purge downloads older than this.
+  download_retention_hours: 48
+  # faster-whisper model — "small" is a good cost/speed/quality default on Apple Silicon.
+  whisper_model: "small"
+  whisper_device: "auto"          # "auto" | "cpu" | "cuda"
+  whisper_compute_type: "auto"    # "auto" | "int8" | "int8_float16" | "float16" | "float32"
+
+scout:
+  model: "claude-opus-4-7"
+  max_clips_per_source: 2
+  min_virality_score: 70
+  min_clip_seconds: 20
+  max_clip_seconds: 60
+
+cut:
+  width: 1080
+  height: 1920
+  fps: 30
+  # Smart-crop: try to keep faces / motion centered. Fallback to center crop.
+  smart_crop: true
+  hook_card_seconds: 0.5
+  # ASS caption styling.
+  caption_font: "Inter"
+  caption_size: 90
+  caption_outline: 4
+  # Ducking: dB attenuation applied to source audio under VO.
+  duck_db: -14
+
+tts:
+  # "piper" (local, free) | "elevenlabs" (premium)
+  backend: "piper"
+  piper_voice_model: "en_US-amy-medium.onnx"
+  elevenlabs_model: "eleven_turbo_v2_5"
+
+package:
+  model: "claude-sonnet-4-6"
+  hashtags:
+    youtube_count: 5
+    tiktok_count: 5
+    instagram_count: 12
+
+post:
+  youtube:
+    enabled: true
+    privacy_status: "public"   # "public" | "unlisted" | "private"
+    category_id: "24"           # 24 = Entertainment; 28 = Science & Tech
+    made_for_kids: false
+  instagram:
+    enabled: true
+  tiktok:
+    enabled: true
+    # Until the app is audited, leave direct_post false — drafts only.
+    direct_post: false
+    privacy_level: "SELF_ONLY"  # SELF_ONLY | MUTUAL_FOLLOW_FRIENDS | PUBLIC_TO_EVERYONE
+    disable_duet: false
+    disable_stitch: false
+    disable_comment: false
+
+dashboard:
+  host: "127.0.0.1"
+  port: 8765

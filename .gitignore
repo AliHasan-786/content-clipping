@@ -1,0 +1,36 @@
+.DS_Store
+.claude/
+
+# Environment and local secrets
+.env
+.env.*
+!.env.example
+secrets/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+clipper/clips.db
+clipper/clips.db-*
+clipper/data/downloads/
+clipper/data/clips/
+clipper/data/transcripts/
+
+# Node / Next.js
+node_modules/
+.next/
+out/
+build/
+coverage/
+*.tsbuildinfo
+next-env.d.ts
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# Runtime uploads
+content-clipping-app/public/uploads/
+content-clipping-app/temp/

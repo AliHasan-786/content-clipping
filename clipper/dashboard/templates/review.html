@@ -1,0 +1,218 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Clipper Review</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+  :root {
+    --bg: #0b0d10; --panel: #14181d; --line: #232a31;
+    --text: #e7ecef; --muted: #8a98a5; --accent: #4fd1c5;
+    --ok: #22c55e; --bad: #ef4444; --warn: #eab308;
+  }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 14px/1.45 system-ui,-apple-system,"Segoe UI",Helvetica,sans-serif;
+  }
+  header {
+    position: sticky; top: 0; z-index: 5; background: rgba(11,13,16,.92);
+    backdrop-filter: blur(8px); border-bottom: 1px solid var(--line);
+    padding: 12px 20px; display: flex; align-items: center; gap: 16px;
+  }
+  header h1 { font-size: 16px; margin: 0; letter-spacing: .02em; }
+  header nav a {
+    color: var(--muted); text-decoration: none; margin-right: 14px;
+    padding: 4px 8px; border-radius: 6px; font-size: 13px;
+  }
+  header nav a.active { color: var(--text); background: var(--panel); }
+  main { max-width: 1100px; margin: 0 auto; padding: 24px 20px; }
+  .empty {
+    text-align: center; color: var(--muted); padding: 80px 0;
+    border: 1px dashed var(--line); border-radius: 12px;
+  }
+  .card {
+    display: grid; grid-template-columns: 320px 1fr; gap: 20px;
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: 12px; padding: 18px; margin-bottom: 22px;
+  }
+  .card video {
+    width: 100%; max-height: 560px; background: #000; border-radius: 8px;
+  }
+  .meta-line { color: var(--muted); font-size: 12px; margin-top: 6px; }
+  .score {
+    display: inline-block; padding: 2px 8px; border-radius: 999px;
+    background: #1f2937; color: var(--accent); font-weight: 600;
+    font-size: 12px;
+  }
+  h3 { margin: 0 0 6px; font-size: 15px; }
+  .hook { font-size: 16px; font-weight: 600; margin-bottom: 4px; }
+  .why  { color: var(--muted); margin-bottom: 12px; }
+  details { margin-bottom: 10px; }
+  details > summary {
+    cursor: pointer; color: var(--muted); padding: 4px 0;
+    font-size: 12px; user-select: none;
+  }
+  pre {
+    background: #0f1217; border: 1px solid var(--line); border-radius: 6px;
+    padding: 10px; white-space: pre-wrap; max-height: 220px; overflow-y: auto;
+    font-size: 12px; color: #cbd5d8;
+  }
+  form.platforms { display: grid; gap: 14px; }
+  .platform {
+    border: 1px solid var(--line); border-radius: 8px; padding: 12px;
+    background: #10141a;
+  }
+  .platform header {
+    position: static; background: transparent; padding: 0 0 8px;
+    border-bottom: none; display: flex; align-items: center;
+    justify-content: space-between; backdrop-filter: none;
+  }
+  .platform h4 { margin: 0; font-size: 13px; letter-spacing: .04em;
+                 text-transform: uppercase; color: var(--muted); }
+  label.switch { font-size: 12px; color: var(--muted); cursor: pointer; }
+  label.switch input { vertical-align: -2px; margin-right: 4px; }
+  input[type=text], textarea {
+    width: 100%; box-sizing: border-box;
+    background: #0b0e12; color: var(--text);
+    border: 1px solid var(--line); border-radius: 6px;
+    padding: 8px 10px; font: inherit; resize: vertical;
+  }
+  textarea { min-height: 56px; }
+  .row-actions {
+    display: flex; gap: 10px; align-items: center; margin-top: 12px;
+    padding-top: 12px; border-top: 1px solid var(--line);
+  }
+  button {
+    cursor: pointer; border: 1px solid var(--line); background: #1c2229;
+    color: var(--text); padding: 8px 14px; border-radius: 6px;
+    font: inherit; font-weight: 500;
+  }
+  button.primary { background: var(--ok); border-color: var(--ok); color: #052e16; }
+  button.danger  { background: var(--bad); border-color: var(--bad); color: #fff; }
+  button:hover   { filter: brightness(1.1); }
+  .source-link { color: var(--muted); font-size: 12px; }
+  .source-link a { color: var(--accent); }
+  .status-pill {
+    display: inline-block; padding: 2px 8px; border-radius: 999px;
+    font-size: 11px; background: #1f2937; color: var(--muted);
+    text-transform: uppercase; letter-spacing: .08em;
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>Clipper Review</h1>
+  <nav>
+    {% for s in ["pending_review", "approved", "rejected", "posted", "all"] %}
+      <a href="?show={{s}}" class="{% if show == s %}active{% endif %}">
+        {{s}}{% if counts.get(s) %} ({{counts[s]}}){% endif %}
+      </a>
+    {% endfor %}
+  </nav>
+</header>
+
+<main>
+{% if not clips %}
+  <div class="empty">
+    No clips here.<br>
+    {% if show == "pending_review" %}Run <code>clip run</code> to fill the queue.{% endif %}
+  </div>
+{% endif %}
+
+{% for c in clips %}
+  <div class="card" id="clip-{{c.id}}">
+    <div>
+      {% if c.rendered_path %}
+        <video controls preload="metadata" src="/clip/{{c.id}}/media"></video>
+      {% else %}
+        <div class="empty" style="padding: 40px 0;">no media</div>
+      {% endif %}
+      <div class="meta-line">
+        <span class="score">{{c.virality_score or '–'}}</span>
+        &nbsp;{{c.format}} · {{ "%.1f"|format(c.end_s - c.start_s) }}s
+        &nbsp;<span class="status-pill">{{c.status}}</span>
+      </div>
+      <div class="source-link" style="margin-top:8px;">
+        source: <a href="{{c.source_url}}" target="_blank" rel="noopener">{{c.source_channel or c.video_id}}</a>
+        <div style="opacity:.7;margin-top:2px;">{{c.source_title}}</div>
+      </div>
+    </div>
+
+    <div>
+      <div class="hook">{{c.hook}}</div>
+      <div class="why">{{c.why_it_works}}</div>
+
+      <details>
+        <summary>VO script</summary>
+        <pre>{{c.vo_script}}</pre>
+      </details>
+
+      <form class="platforms" method="post" action="/clip/{{c.id}}/save">
+        {% set yt = c.metadata.get('youtube', {}) %}
+        <div class="platform">
+          <header>
+            <h4>YouTube Shorts</h4>
+            <label class="switch">
+              <input type="checkbox" name="yt_enabled" {% if yt.get('enabled', true) %}checked{% endif %}>
+              post
+            </label>
+          </header>
+          <input type="text" name="yt_title" value="{{yt.get('title','')}}" placeholder="title (≤100 chars)">
+          <textarea name="yt_description" placeholder="description">{{yt.get('description','')}}</textarea>
+          <input type="text" name="yt_tags" value="{{yt.get('tags', [])|join(', ')}}" placeholder="tags, comma separated">
+        </div>
+
+        {% set tt = c.metadata.get('tiktok', {}) %}
+        <div class="platform">
+          <header>
+            <h4>TikTok</h4>
+            <label class="switch">
+              <input type="checkbox" name="tt_enabled" {% if tt.get('enabled', true) %}checked{% endif %}>
+              post
+            </label>
+          </header>
+          <textarea name="tt_caption" placeholder="caption">{{tt.get('caption','')}}</textarea>
+          <input type="text" name="tt_hashtags" value="{{tt.get('hashtags', [])|join(' ')}}" placeholder="#hashtags space separated">
+        </div>
+
+        {% set ig = c.metadata.get('instagram', {}) %}
+        <div class="platform">
+          <header>
+            <h4>Instagram Reels</h4>
+            <label class="switch">
+              <input type="checkbox" name="ig_enabled" {% if ig.get('enabled', true) %}checked{% endif %}>
+              post
+            </label>
+          </header>
+          <textarea name="ig_caption" placeholder="caption">{{ig.get('caption','')}}</textarea>
+          <input type="text" name="ig_hashtags" value="{{ig.get('hashtags', [])|join(' ')}}" placeholder="#caption #hashtags">
+          <input type="text" name="ig_first_comment" value="{{ig.get('first_comment_hashtags', [])|join(' ')}}" placeholder="#first-comment #hashtags">
+        </div>
+
+        <div class="row-actions">
+          <button type="submit">Save edits</button>
+          <button type="submit" formaction="/clip/{{c.id}}/approve" class="primary">✓ Approve</button>
+          <button type="button" class="danger" onclick="rejectClip({{c.id}})">✗ Reject</button>
+          {% if c.reject_reason %}<span class="meta-line">reason: {{c.reject_reason}}</span>{% endif %}
+        </div>
+      </form>
+    </div>
+  </div>
+{% endfor %}
+</main>
+
+<script>
+function rejectClip(id) {
+  const reason = prompt("Reject reason (optional, feeds back to scout):") || "";
+  const f = document.createElement("form");
+  f.method = "post";
+  f.action = `/clip/${id}/reject`;
+  const r = document.createElement("input");
+  r.name = "reason"; r.value = reason;
+  f.appendChild(r);
+  document.body.appendChild(f);
+  f.submit();
+}
+</script>
+</body>
+</html>

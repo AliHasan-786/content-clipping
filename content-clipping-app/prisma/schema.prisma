@@ -1,0 +1,864 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String    @unique
+  emailVerified DateTime?
+  image         String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  accounts Account[]
+  sessions Session[]
+  videos   Video[]
+  chatConversations ChatConversation[]
+  platformAccounts PlatformAccount[]
+  publishingCampaigns PublishingCampaign[]
+  publishingHistory PublishingHistory[]
+  roiAnalysis ROIAnalysis[]
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model Video {
+  id              String         @id @default(cuid())
+  title           String
+  description     String?
+  url             String
+  thumbnail       String?
+  duration        Int            // in seconds
+  fileSize        BigInt         // in bytes
+  uploadedAt      DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  status          VideoStatus    @default(UPLOADING)
+  processingStage ProcessingStage @default(UPLOADED)
+  processingProgress Int         @default(0) // 0-100
+  errorMessage    String?
+  metadataExtracted Boolean      @default(false)
+  thumbnailGenerated Boolean     @default(false)
+  audioExtracted  Boolean        @default(false)
+  transcriptionCompleted Boolean @default(false)
+  clipsGenerated  Boolean        @default(false)
+  width           Int?
+  height          Int?
+  fps             Float?
+  bitrate         Int?
+  codec           String?
+  userId          String
+  priority        Int            @default(0)    // Processing priority
+  lastProcessedAt DateTime?                     // For monitoring
+  retryCount      Int            @default(0)    // Retry tracking
+  processingTime  Int?                          // Processing duration in seconds
+  cacheKey        String?                       // For caching optimization
+  filePath        String?                       // Full file path for optimization
+
+  user          User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  clips         Clip[]
+  transcription Transcription?
+  chatConversations ChatConversation[]
+  publishingCampaigns PublishingCampaign[]
+  processingMetrics ProcessingMetrics[]
+
+  // Optimized indexes for high-volume processing
+  @@index([userId])
+  @@index([status])
+  @@index([processingStage])
+  @@index([uploadedAt])
+  @@index([updatedAt])
+  @@index([status, processingStage])
+  @@index([userId, status])
+  @@index([userId, uploadedAt])
+  @@index([priority, status])
+  @@index([lastProcessedAt])
+  @@index([cacheKey])
+  @@index([fileSize])
+  @@index([duration])
+}
+
+model Clip {
+  id          String   @id @default(cuid())
+  title       String
+  description String?
+  startTime   Int      // in seconds
+  endTime     Int      // in seconds
+  tags        String[] @default([])
+  exported    Boolean  @default(false)
+  exportUrl   String?
+  score       Float?   // engagement score 0-1
+  confidence  Float?   // confidence in clip quality 0-1
+  reason      String?  // why this clip was suggested
+  approved    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  videoId     String
+  duration    Int?     // clip duration for sorting/filtering
+  cacheKey    String?  // for caching exported clips
+
+  video Video @relation(fields: [videoId], references: [id], onDelete: Cascade)
+  publishingCampaigns PublishingCampaign[]
+
+  // Optimized indexes for clip queries
+  @@index([videoId])
+  @@index([exported])
+  @@index([approved])
+  @@index([score])
+  @@index([videoId, score])
+  @@index([videoId, approved])
+  @@index([videoId, exported])
+  @@index([createdAt])
+  @@index([updatedAt])
+  @@index([duration])
+  @@index([confidence])
+  @@index([cacheKey])
+}
+
+model Transcription {
+  id        String                @id @default(cuid())
+  text      String                @db.Text
+  language  String?
+  segments  TranscriptionSegment[]
+  createdAt DateTime              @default(now())
+  updatedAt DateTime              @updatedAt
+  videoId   String                @unique
+
+  video Video @relation(fields: [videoId], references: [id], onDelete: Cascade)
+
+  @@index([videoId])
+}
+
+model TranscriptionSegment {
+  id              String        @id @default(cuid())
+  text            String        @db.Text
+  startTime       Float         // in seconds with decimal precision
+  endTime         Float         // in seconds with decimal precision
+  confidence      Float?        // confidence score 0-1
+  speakerLabel    String?       // speaker identification if available
+  transcriptionId String
+
+  transcription Transcription @relation(fields: [transcriptionId], references: [id], onDelete: Cascade)
+
+  @@index([transcriptionId])
+  @@index([startTime])
+  @@index([endTime])
+  @@index([transcriptionId, startTime])
+  @@index([confidence])
+}
+
+// Performance monitoring model
+model ProcessingMetrics {
+  id               String   @id @default(cuid())
+  videoId          String
+  stage            String   // processing stage
+  duration         Int      // processing time in milliseconds
+  memoryUsage      BigInt   // memory usage in bytes
+  cpuUsage         Float    // CPU usage percentage
+  queueWaitTime    Int      // time in queue in milliseconds
+  concurrentJobs   Int      // number of concurrent jobs
+  errorMessage     String?
+  metadata         Json     @default("{}")
+  timestamp        DateTime @default(now())
+
+  video Video @relation(fields: [videoId], references: [id], onDelete: Cascade)
+
+  @@index([videoId])
+  @@index([stage])
+  @@index([timestamp])
+  @@index([duration])
+  @@index([memoryUsage])
+  @@index([videoId, timestamp])
+}
+
+enum VideoStatus {
+  UPLOADING
+  PROCESSING
+  READY
+  ERROR
+}
+
+enum ProcessingStage {
+  UPLOADED
+  EXTRACTING_METADATA
+  GENERATING_THUMBNAIL
+  EXTRACTING_AUDIO
+  TRANSCRIBING
+  DETECTING_CLIPS
+  GENERATING_CLIPS
+  COMPLETED
+  FAILED
+}
+
+model ChatConversation {
+  id         String       @id @default(cuid())
+  title      String?
+  userId     String
+  videoId    String?
+  context    Json         // Stores ChatContext as JSON
+  isActive   Boolean      @default(true)
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+
+  user     User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  video    Video?        @relation(fields: [videoId], references: [id], onDelete: SetNull)
+  messages ChatMessage[]
+
+  @@index([userId])
+  @@index([videoId])
+  @@index([isActive])
+  @@index([createdAt])
+}
+
+model ChatMessage {
+  id             String   @id @default(cuid())
+  content        String   @db.Text
+  role           String   // 'user' | 'assistant'
+  conversationId String
+  metadata       Json?    // Stores metadata like commands, actions, context
+  createdAt      DateTime @default(now())
+
+  conversation ChatConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId])
+  @@index([createdAt])
+  @@index([role])
+}
+
+// Social Media Publishing Models
+model SocialPlatform {
+  id              String            @id @default(cuid())
+  name            String            // 'youtube', 'tiktok', 'instagram', 'twitter'
+  displayName     String
+  isActive        Boolean           @default(true)
+  apiVersion      String?
+  rateLimit       Json?             // Rate limiting configuration
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  platformAccounts PlatformAccount[]
+  publishingCampaigns PublishingCampaign[]
+
+  @@unique([name])
+  @@index([name])
+  @@index([isActive])
+}
+
+model PlatformAccount {
+  id              String            @id @default(cuid())
+  userId          String
+  platformId      String
+  accountId       String            // Platform-specific account ID
+  username        String?
+  displayName     String?
+  profilePicture  String?
+  accessToken     String?           @db.Text
+  refreshToken    String?           @db.Text
+  tokenExpiresAt  DateTime?
+  scopes          String[]          @default([])
+  isActive        Boolean           @default(true)
+  lastSyncAt      DateTime?
+  settings        Json              @default("{}")
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  user              User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  platform          SocialPlatform   @relation(fields: [platformId], references: [id], onDelete: Cascade)
+  publishingCampaigns PublishingCampaign[]
+  publishedContent  PublishedContent[]
+  analytics         PlatformAnalytics[]
+  scheduledPosts    ScheduledPost[]
+  publishingHistory PublishingHistory[]
+  optimalPostingTimes OptimalPostingTime[]
+  revenueMetrics    RevenueMetrics[]
+  monetizationConfig MonetizationConfig[]
+  revenueForecasts  RevenueForecasts[]
+
+  @@unique([userId, platformId, accountId])
+  @@index([userId])
+  @@index([platformId])
+  @@index([isActive])
+  @@index([lastSyncAt])
+}
+
+model PublishingCampaign {
+  id              String               @id @default(cuid())
+  title           String
+  description     String?
+  userId          String
+  clipId          String?
+  videoId         String?
+  platformId      String
+  accountId       String
+  status          PublishingStatus     @default(DRAFT)
+  scheduledAt     DateTime?
+  publishedAt     DateTime?
+  autoOptimize    Boolean              @default(true)
+  approvalRequired Boolean             @default(false)
+  isApproved      Boolean              @default(false)
+  approvedAt      DateTime?
+  approvedBy      String?
+  errorMessage    String?
+  retryCount      Int                  @default(0)
+  maxRetries      Int                  @default(3)
+  metadata        Json                 @default("{}")
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+
+  user            User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  clip            Clip?                @relation(fields: [clipId], references: [id], onDelete: SetNull)
+  video           Video?               @relation(fields: [videoId], references: [id], onDelete: SetNull)
+  platform        SocialPlatform       @relation(fields: [platformId], references: [id], onDelete: Cascade)
+  account         PlatformAccount      @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  contentVariations ContentVariation[]
+  publishedContent PublishedContent[]
+  scheduledPosts  ScheduledPost[]
+  contentOptimizations ContentOptimization[]
+  publishingHistory PublishingHistory[]
+  revenueMetrics  RevenueMetrics[]
+  roiAnalysis     ROIAnalysis[]
+
+  @@index([userId])
+  @@index([clipId])
+  @@index([videoId])
+  @@index([platformId])
+  @@index([accountId])
+  @@index([status])
+  @@index([scheduledAt])
+  @@index([publishedAt])
+  @@index([createdAt])
+}
+
+model ContentVariation {
+  id              String            @id @default(cuid())
+  campaignId      String
+  platformName    String            // 'youtube', 'tiktok', 'instagram', 'twitter'
+  title           String?
+  description     String?           @db.Text
+  hashtags        String[]          @default([])
+  mentions        String[]          @default([])
+  captions        String?           @db.Text
+  videoUrl        String?           // Optimized video file path
+  thumbnailUrl    String?           // Platform-specific thumbnail
+  aspectRatio     String?           // '9:16', '16:9', '1:1'
+  duration        Int?              // in seconds
+  fileSize        BigInt?           // in bytes
+  quality         String?           // 'low', 'medium', 'high', 'original'
+  settings        Json              @default("{}")    // Platform-specific settings
+  isOptimized     Boolean           @default(false)
+  optimizedAt     DateTime?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  campaign        PublishingCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@index([campaignId])
+  @@index([platformName])
+  @@index([isOptimized])
+  @@index([createdAt])
+}
+
+model PublishedContent {
+  id              String            @id @default(cuid())
+  campaignId      String
+  accountId       String
+  platformPostId  String?           // Platform's post ID
+  title           String?
+  description     String?           @db.Text
+  url             String?           // Platform-specific content URL
+  thumbnailUrl    String?
+  videoUrl        String?
+  hashtags        String[]          @default([])
+  mentions        String[]          @default([])
+  visibility      String?           // 'public', 'private', 'unlisted'
+  status          ContentStatus     @default(PUBLISHED)
+  publishedAt     DateTime          @default(now())
+  lastSyncAt      DateTime?
+  metadata        Json              @default("{}")
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  campaign        PublishingCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  account         PlatformAccount   @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  analytics       ContentAnalytics[]
+  revenueMetrics  RevenueMetrics[]
+  contentPerformance ContentPerformance[]
+  roiAnalysis     ROIAnalysis[]
+
+  @@unique([accountId, platformPostId])
+  @@index([campaignId])
+  @@index([accountId])
+  @@index([status])
+  @@index([publishedAt])
+  @@index([lastSyncAt])
+}
+
+model ContentAnalytics {
+  id              String            @id @default(cuid())
+  contentId       String
+  views           BigInt            @default(0)
+  likes           BigInt            @default(0)
+  comments        BigInt            @default(0)
+  shares          BigInt            @default(0)
+  saves           BigInt            @default(0)
+  impressions     BigInt            @default(0)
+  reach           BigInt            @default(0)
+  engagementRate  Float             @default(0.0)
+  ctr             Float             @default(0.0)    // Click-through rate
+  watchTime       BigInt            @default(0)      // in seconds
+  completionRate  Float             @default(0.0)
+  recordedAt      DateTime          @default(now())
+  createdAt       DateTime          @default(now())
+
+  content         PublishedContent  @relation(fields: [contentId], references: [id], onDelete: Cascade)
+
+  @@index([contentId])
+  @@index([recordedAt])
+  @@index([views])
+  @@index([engagementRate])
+}
+
+model PlatformAnalytics {
+  id              String            @id @default(cuid())
+  accountId       String
+  period          String            // 'daily', 'weekly', 'monthly'
+  startDate       DateTime
+  endDate         DateTime
+  totalPosts      Int               @default(0)
+  totalViews      BigInt            @default(0)
+  totalLikes      BigInt            @default(0)
+  totalComments   BigInt            @default(0)
+  totalShares     BigInt            @default(0)
+  avgEngagement   Float             @default(0.0)
+  followers       BigInt            @default(0)
+  following       BigInt            @default(0)
+  profileViews    BigInt            @default(0)
+  data            Json              @default("{}")   // Additional platform-specific metrics
+  recordedAt      DateTime          @default(now())
+  createdAt       DateTime          @default(now())
+
+  account         PlatformAccount   @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@unique([accountId, period, startDate, endDate])
+  @@index([accountId])
+  @@index([period])
+  @@index([startDate])
+  @@index([endDate])
+  @@index([recordedAt])
+}
+
+model HashtagTrend {
+  id              String            @id @default(cuid())
+  hashtag         String
+  platform        String
+  trending        Boolean           @default(false)
+  volume          BigInt            @default(0)
+  growthRate      Float             @default(0.0)
+  category        String?
+  sentiment       Float             @default(0.0)
+  lastUpdated     DateTime          @default(now())
+  createdAt       DateTime          @default(now())
+
+  @@unique([hashtag, platform])
+  @@index([hashtag])
+  @@index([platform])
+  @@index([trending])
+  @@index([volume])
+  @@index([lastUpdated])
+}
+
+model OptimalPostingTime {
+  id              String            @id @default(cuid())
+  accountId       String
+  dayOfWeek       Int               // 0-6 (Sunday to Saturday)
+  hour            Int               // 0-23
+  timezone        String
+  engagementScore Float             @default(0.0)
+  lastCalculated  DateTime          @default(now())
+  createdAt       DateTime          @default(now())
+
+  account         PlatformAccount   @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@unique([accountId, dayOfWeek, hour])
+  @@index([accountId])
+  @@index([dayOfWeek])
+  @@index([hour])
+  @@index([engagementScore])
+}
+
+enum PublishingStatus {
+  DRAFT
+  SCHEDULED
+  PROCESSING
+  PUBLISHING
+  PUBLISHED
+  FAILED
+  CANCELLED
+}
+
+enum ContentStatus {
+  PUBLISHED
+  PRIVATE
+  DELETED
+  RESTRICTED
+  PROCESSING
+}
+
+model ScheduledPost {
+  id              String            @id @default(cuid())
+  campaignId      String
+  accountId       String
+  scheduledAt     DateTime
+  status          SchedulingStatus  @default(PENDING)
+  priority        Int               @default(5)    // 1-10, higher is more important
+  attemptCount    Int               @default(0)
+  maxAttempts     Int               @default(3)
+  lastAttempt     DateTime?
+  nextAttempt     DateTime?
+  errorMessage    String?
+  processingData  Json              @default("{}")
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  campaign        PublishingCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  account         PlatformAccount    @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@index([scheduledAt])
+  @@index([status])
+  @@index([accountId])
+  @@index([priority])
+  @@index([nextAttempt])
+}
+
+model ContentOptimization {
+  id              String            @id @default(cuid())
+  campaignId      String
+  platformName    String
+  originalVideoUrl String
+  optimizedVideoUrl String?
+  originalThumbnailUrl String?
+  optimizedThumbnailUrl String?
+  targetAspectRatio String          // '9:16', '16:9', '1:1'
+  targetDuration  Int?              // in seconds
+  targetFileSize  BigInt?           // in bytes
+  targetQuality   String            // 'low', 'medium', 'high'
+  compressionSettings Json         @default("{}")
+  status          OptimizationStatus @default(PENDING)
+  progress        Int               @default(0)    // 0-100
+  startedAt       DateTime?
+  completedAt     DateTime?
+  errorMessage    String?
+  metadata        Json              @default("{}")
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  campaign        PublishingCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@index([campaignId])
+  @@index([platformName])
+  @@index([status])
+  @@index([progress])
+  @@index([createdAt])
+}
+
+model PublishingHistory {
+  id              String            @id @default(cuid())
+  campaignId      String
+  accountId       String
+  action          String            // 'CREATED', 'SCHEDULED', 'PUBLISHED', 'FAILED', 'CANCELLED', 'RETRIED'
+  status          String
+  message         String?
+  errorDetails    Json?
+  metadata        Json              @default("{}")
+  timestamp       DateTime          @default(now())
+  userId          String?
+  ipAddress       String?
+  userAgent       String?
+
+  campaign        PublishingCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  account         PlatformAccount    @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  user            User?              @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([campaignId])
+  @@index([accountId])
+  @@index([action])
+  @@index([timestamp])
+  @@index([userId])
+}
+
+enum SchedulingStatus {
+  PENDING
+  PROCESSING
+  PUBLISHED
+  FAILED
+  CANCELLED
+  RETRYING
+}
+
+enum OptimizationStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+// Revenue Analytics Models
+model RevenueMetrics {
+  id              String            @id @default(cuid())
+  contentId       String?           // Links to PublishedContent
+  campaignId      String?           // Links to PublishingCampaign
+  accountId       String
+  platform        String            // 'youtube', 'tiktok', 'instagram', 'twitter'
+  
+  // Revenue data
+  estimatedRevenue Float            @default(0.0)  // USD
+  actualRevenue   Float?            // Confirmed revenue when available
+  cpm             Float?            // Cost per mille (per 1000 views)
+  rpm             Float?            // Revenue per mille
+  ctr             Float?            // Click-through rate for ads
+  
+  // Engagement metrics for revenue calculation
+  views           BigInt            @default(0)
+  watchTime       BigInt            @default(0)    // seconds
+  likes           BigInt            @default(0)
+  comments        BigInt            @default(0)
+  shares          BigInt            @default(0)
+  saves           BigInt            @default(0)
+  
+  // Time period
+  recordedAt      DateTime          @default(now())
+  periodStart     DateTime
+  periodEnd       DateTime
+  
+  // Metadata
+  dataSource      String            // 'platform_api', 'estimated', 'manual'
+  confidence      Float             @default(0.0)  // Confidence in revenue estimate 0-1
+  metadata        Json              @default("{}")
+  
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  account         PlatformAccount   @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  content         PublishedContent? @relation(fields: [contentId], references: [id], onDelete: SetNull)
+  campaign        PublishingCampaign? @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+
+  @@index([accountId])
+  @@index([platform])
+  @@index([recordedAt])
+  @@index([periodStart])
+  @@index([periodEnd])
+  @@index([estimatedRevenue])
+  @@index([views])
+  @@index([watchTime])
+  @@index([contentId])
+  @@index([campaignId])
+  @@unique([contentId, recordedAt])
+}
+
+model MonetizationConfig {
+  id              String            @id @default(cuid())
+  accountId       String
+  platform        String
+  
+  // Revenue rate configurations
+  cpmRate         Float?            // Platform-specific CPM rates
+  rpmRate         Float?            // Platform-specific RPM rates
+  creatorFundRate Float?            // TikTok Creator Fund rate per 1000 views
+  bonusRate       Float?            // Instagram/YouTube bonus rates
+  
+  // Eligibility and status
+  monetizationEnabled Boolean       @default(false)
+  eligibleAt      DateTime?
+  eligibilityRequirements Json      @default("{}")  // Follower counts, view thresholds
+  
+  // Platform-specific settings
+  currency        String            @default("USD")
+  taxRate         Float?            // Tax withholding rate
+  paymentThreshold Float?           // Minimum payout threshold
+  
+  lastUpdated     DateTime          @default(now())
+  createdAt       DateTime          @default(now())
+
+  account         PlatformAccount   @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@unique([accountId, platform])
+  @@index([accountId])
+  @@index([platform])
+  @@index([monetizationEnabled])
+}
+
+model RevenueForecasts {
+  id              String            @id @default(cuid())
+  accountId       String
+  platform        String
+  
+  // Forecast period
+  forecastDate    DateTime
+  forecastPeriod  String            // 'daily', 'weekly', 'monthly', 'quarterly'
+  
+  // Predicted metrics
+  predictedViews  BigInt
+  predictedRevenue Float
+  confidence      Float             @default(0.0)  // Forecast confidence 0-1
+  
+  // Factors used in forecast
+  baselineViews   BigInt            // Historical baseline
+  trendFactor     Float             // Growth/decline trend
+  seasonalFactor  Float             // Seasonal adjustment
+  contentFactor   Float             // Content quality impact
+  
+  // Model information
+  modelVersion    String?
+  lastTrained     DateTime?
+  actualViews     BigInt?           // Actual views when period completes
+  actualRevenue   Float?            // Actual revenue when available
+  accuracy        Float?            // Forecast accuracy when actual data available
+  
+  metadata        Json              @default("{}")
+  createdAt       DateTime          @default(now())
+
+  account         PlatformAccount   @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@index([accountId])
+  @@index([platform])
+  @@index([forecastDate])
+  @@index([forecastPeriod])
+  @@index([predictedRevenue])
+  @@index([confidence])
+  @@unique([accountId, platform, forecastDate, forecastPeriod])
+}
+
+model ContentPerformance {
+  id              String            @id @default(cuid())
+  contentId       String
+  
+  // Viral metrics
+  viralScore      Float             @default(0.0)  // 0-100 viral score
+  growthVelocity  Float             @default(0.0)  // Views per hour in first 24h
+  peakViews       BigInt            @default(0)    // Peak hourly views
+  retentionRate   Float             @default(0.0)  // Average watch percentage
+  
+  // Engagement quality
+  likeRatio       Float             @default(0.0)  // Likes / Views
+  commentRatio    Float             @default(0.0)  // Comments / Views
+  shareRatio      Float             @default(0.0)  // Shares / Views
+  engagementVelocity Float          @default(0.0)  // Engagement per hour
+  
+  // Revenue performance
+  revenuePerView  Float             @default(0.0)  // Revenue / Views
+  revenuePerHour  Float             @default(0.0)  // Revenue / Watch time
+  totalRevenue    Float             @default(0.0)
+  
+  // Trend analysis
+  isViral         Boolean           @default(false)
+  isTrending      Boolean           @default(false)
+  trendingRank    Int?              // Rank in trending if applicable
+  
+  // Time tracking
+  publishedAt     DateTime
+  firstHourViews  BigInt            @default(0)
+  firstDayViews   BigInt            @default(0)
+  recordedAt      DateTime          @default(now())
+  
+  metadata        Json              @default("{}")
+  createdAt       DateTime          @default(now())
+
+  content         PublishedContent  @relation(fields: [contentId], references: [id], onDelete: Cascade)
+
+  @@index([contentId])
+  @@index([viralScore])
+  @@index([growthVelocity])
+  @@index([totalRevenue])
+  @@index([isViral])
+  @@index([isTrending])
+  @@index([publishedAt])
+  @@index([recordedAt])
+  @@unique([contentId, recordedAt])
+}
+
+model ROIAnalysis {
+  id              String            @id @default(cuid())
+  campaignId      String?
+  contentId       String?
+  userId          String
+  
+  // Cost analysis
+  productionCosts Float             @default(0.0)  // API costs, processing time
+  marketingCosts  Float             @default(0.0)  // Promotion, ads
+  operationalCosts Float            @default(0.0)  // Platform fees, etc.
+  totalCosts      Float             @default(0.0)
+  
+  // Revenue analysis
+  directRevenue   Float             @default(0.0)  // Platform monetization
+  indirectRevenue Float             @default(0.0)  // Affiliate, sponsorship
+  totalRevenue    Float             @default(0.0)
+  
+  // ROI metrics
+  roi             Float             @default(0.0)  // (Revenue - Costs) / Costs
+  roiPercentage   Float             @default(0.0)  // ROI * 100
+  paybackPeriod   Int?              // Days to break even
+  profitMargin    Float             @default(0.0)  // (Revenue - Costs) / Revenue
+  
+  // Time metrics
+  analysisDate    DateTime          @default(now())
+  periodStart     DateTime
+  periodEnd       DateTime
+  
+  metadata        Json              @default("{}")
+  createdAt       DateTime          @default(now())
+
+  user            User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  campaign        PublishingCampaign? @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  content         PublishedContent? @relation(fields: [contentId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([campaignId])
+  @@index([contentId])
+  @@index([roi])
+  @@index([totalRevenue])
+  @@index([analysisDate])
+  @@index([periodStart])
+  @@index([periodEnd])
+}

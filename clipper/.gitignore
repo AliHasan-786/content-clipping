@@ -1,0 +1,12 @@
+.env
+secrets/
+data/downloads/
+data/clips/
+data/transcripts/
+clips.db
+clips.db-journal
+__pycache__/
+*.pyc
+.venv/
+venv/
+.DS_Store
