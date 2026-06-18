@@ -180,6 +180,7 @@ clipper/
   - Per-platform toggles (post to YT? IG? TikTok?)
   - ✓ Approve  /  ✗ Reject buttons
 - Top-level queue summary shows ready-to-review clips, approved clips, posted clips, and same-day trend ideas.
+- Daily trend brief groups open trend opportunities into render-now cards, source-rights review, blocked signals, source-search hints, and next actions.
 - Posting setup chips show whether YouTube, Instagram, and TikTok credentials are connected before the dashboard allows direct posting.
 - Approve → status `approved`. Reject → `rejected` (+ optional reason to improve scout over time).
 - **This is the owner's entire daily job.** ~5 min.
@@ -237,6 +238,7 @@ Put all keys in `.env`. Never commit it.
 clip run        # trend discovery + stages 1–5. ~10–20 min unattended.
 clip auth status # verify API/posting credentials without printing secrets
 clip trends     # run only the trendjacking discovery lane
+clip brief      # summarize today's trend queue into render/review priorities
 clip review     # opens http://127.0.0.1:8765. View full MP4s, approve/reject, optionally post.
 clip schedule   # suggest posting order for approved clips
 clip integrations # show optional AI editor/render/publisher readiness

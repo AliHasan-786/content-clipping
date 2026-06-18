@@ -60,6 +60,12 @@ def _integration_status(cfg: dict) -> list[dict]:
     return integrations.status(cfg)
 
 
+def _trend_brief() -> dict:
+    from pipeline import brief
+
+    return brief.build(limit=25)
+
+
 def _queue_trend_source_candidate(trend_id: int) -> None:
     with db.connect() as conn:
         row = conn.execute(
@@ -158,6 +164,7 @@ def index(request: Request, show: str = "pending_review", notice: Optional[str] 
             "recent_posts": [dict(r) for r in recent_posts],
             "notice": notice,
             "ai_ready": _ai_ready(cfg),
+            "trend_brief": _trend_brief(),
         },
     )
 

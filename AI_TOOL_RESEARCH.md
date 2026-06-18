@@ -167,10 +167,11 @@ Patterns to keep:
 Repo status:
 - Reddit/RSS/manual trend lane exists.
 - LLM triage now adds hooks, source-search queries, comment angles, and safety flags.
+- `clip brief` and the dashboard daily trend brief now group open opportunities into render-now, source-review, blocked-signal, source-search, and next-action lanes.
 
 Next useful improvement:
 - Add manual CSV/API imports for TikTok Creative Center, TrendTok, vidIQ, and Exploding Topics exports.
-- Add a daily "trend brief" panel summarizing top topics/sounds/hashtags before rendering.
+- Add importers for daily topic/sound/hashtag exports so the brief can include non-Reddit trend signals.
 
 ### Posting / Scheduling
 

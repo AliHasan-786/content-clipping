@@ -424,6 +424,51 @@
     border-top: 1px solid var(--line);
     padding-top: 8px;
   }
+  .brief-panel {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 14px;
+    margin-bottom: 16px;
+  }
+  .brief-panel h3 {
+    margin: 0;
+    font-size: 16px;
+  }
+  .brief-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+    margin-top: 12px;
+  }
+  .brief-block {
+    border: 1px solid var(--line);
+    border-radius: 7px;
+    background: #0f1419;
+    padding: 10px;
+    min-width: 0;
+  }
+  .brief-block h4 {
+    margin: 0 0 8px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: .08em;
+    font-size: 11px;
+  }
+  .brief-list {
+    margin: 0;
+    padding-left: 18px;
+    color: var(--soft);
+  }
+  .brief-list li {
+    margin: 6px 0;
+    overflow-wrap: anywhere;
+  }
+  .brief-counts {
+    color: var(--muted);
+    font-size: 12px;
+    margin-top: 4px;
+  }
   @media (max-width: 900px) {
     .header-inner {
       grid-template-columns: 1fr;
@@ -436,6 +481,9 @@
       grid-template-columns: repeat(2, minmax(0, 1fr));
     }
     .clip-card {
+      grid-template-columns: 1fr;
+    }
+    .brief-grid {
       grid-template-columns: 1fr;
     }
     .media-panel video {
@@ -781,6 +829,54 @@
         </div>
       </article>
     {% endfor %}
+  </section>
+
+  <section class="brief-panel" aria-label="Daily trend brief">
+    <div class="section-title" style="margin:0 0 8px;">
+      <div>
+        <h3>Daily trend brief</h3>
+        <div class="brief-counts">
+          total {{trend_brief.counts.total}} · allowed {{trend_brief.counts.allowed}} · review {{trend_brief.counts.review_required}} · blocked {{trend_brief.counts.blocked}}
+        </div>
+      </div>
+      <div class="meta-line">same queue, grouped by what can happen next</div>
+    </div>
+    <div class="brief-grid">
+      <div class="brief-block">
+        <h4>Render now</h4>
+        <ol class="brief-list">
+          {% for item in trend_brief.render_now[:3] %}
+            <li><a href="#trend-{{item.id}}">{{item.title}}</a> <span class="score">{{item.score}}</span></li>
+          {% else %}
+            <li>none</li>
+          {% endfor %}
+        </ol>
+      </div>
+      <div class="brief-block">
+        <h4>Needs source rights</h4>
+        <ol class="brief-list">
+          {% for item in trend_brief.rights_review[:3] %}
+            <li><a href="#trend-{{item.id}}">{{item.title}}</a> <span class="score">{{item.score}}</span></li>
+          {% else %}
+            <li>none</li>
+          {% endfor %}
+        </ol>
+      </div>
+      <div class="brief-block">
+        <h4>Next actions</h4>
+        <ul class="brief-list">
+          {% for action in trend_brief.next_actions[:3] %}
+            <li>{{action}}</li>
+          {% endfor %}
+        </ul>
+      </div>
+    </div>
+    {% if trend_brief.source_queries %}
+      <details style="margin-top:12px;">
+        <summary>Source-search queries</summary>
+        <pre>{{trend_brief.source_queries|join('\n')}}</pre>
+      </details>
+    {% endif %}
   </section>
 
   <section id="trend-queue">

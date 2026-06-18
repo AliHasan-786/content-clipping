@@ -144,6 +144,15 @@ def trends_cmd(cfg: dict, limit: int):
         click.echo(f"       {r['url']}")
 
 
+@cli.command(name="brief")
+@click.option("--limit", type=int, default=25, help="How many open trend opportunities to summarize.")
+def brief_cmd(limit: int):
+    """Print today's trend brief with render/review priorities."""
+    from pipeline import brief
+
+    brief.print_brief(limit=limit)
+
+
 @cli.command()
 @click.pass_obj
 def review(cfg: dict):
