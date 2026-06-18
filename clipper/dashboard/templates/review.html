@@ -180,7 +180,13 @@
         <div class="trend-actions">
           {% if t.rights_status != "blocked" %}
             <form method="post" action="/trend/{{t.id}}/approve">
-              <button type="submit" class="primary">Approve treatment</button>
+              <button type="submit" class="primary">
+                {% if t.rights_status == "allowed" and t.recommended_format == "screenshot_card" %}
+                  Render preview
+                {% else %}
+                  Approve treatment
+                {% endif %}
+              </button>
             </form>
           {% endif %}
           <button type="button" class="danger" onclick="rejectTrend({{t.id}})">Reject</button>

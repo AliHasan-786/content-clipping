@@ -16,6 +16,7 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+import yaml
 from fastapi import FastAPI, Form, HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
@@ -27,6 +28,11 @@ import db  # noqa: E402
 
 app = FastAPI(title="Clipper Review")
 templates = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
+
+
+def _load_config() -> dict:
+    with open(ROOT / "config.yaml") as f:
+        return yaml.safe_load(f)
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -147,9 +153,10 @@ async def reject(clip_id: int, request: Request):
 
 @app.post("/trend/{trend_id}/approve")
 def approve_trend(trend_id: int):
+    should_render = False
     with db.connect() as conn:
         row = conn.execute(
-            "SELECT rights_status FROM trend_opportunities WHERE id = ?",
+            "SELECT rights_status, recommended_format FROM trend_opportunities WHERE id = ?",
             (trend_id,),
         ).fetchone()
         if not row:
@@ -157,6 +164,11 @@ def approve_trend(trend_id: int):
         if row["rights_status"] == "blocked":
             raise HTTPException(400, "blocked trend opportunities cannot be approved")
         conn.execute("UPDATE trend_opportunities SET status = 'approved' WHERE id = ?", (trend_id,))
+        should_render = row["rights_status"] == "allowed" and row["recommended_format"] == "screenshot_card"
+    if should_render:
+        from pipeline import cut
+        cut.render_approved_trends(_load_config(), trend_id=trend_id)
+        return RedirectResponse(url="/?show=pending_review", status_code=303)
     return RedirectResponse(url="/#trend-queue", status_code=303)
 
 

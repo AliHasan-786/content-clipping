@@ -18,6 +18,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import textwrap
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -44,6 +45,337 @@ def _ffprobe_duration(path: Path) -> float:
         check=True, capture_output=True, text=True,
     ).stdout.strip()
     return float(out) if out else 0.0
+
+
+# ---------- trend screenshot cards ------------------------------------------
+
+def _font(size: int, bold: bool = False):
+    try:
+        from PIL import ImageFont
+    except ImportError:
+        raise RuntimeError("Pillow not installed. `pip install -r clipper/requirements.txt`.")
+
+    names = (
+        ("Arial Bold.ttf", "Arial.ttf") if bold else ("Arial.ttf", "Helvetica.ttc")
+    )
+    candidates = []
+    for name in names:
+        candidates.extend([
+            Path("/System/Library/Fonts/Supplemental") / name,
+            Path("/Library/Fonts") / name,
+            Path("/usr/share/fonts/truetype/dejavu") / ("DejaVuSans-Bold.ttf" if bold else "DejaVuSans.ttf"),
+        ])
+    for path in candidates:
+        if path.exists():
+            return ImageFont.truetype(str(path), size=size)
+    return ImageFont.load_default()
+
+
+def _text_width(draw, text: str, font) -> int:
+    box = draw.textbbox((0, 0), text, font=font)
+    return int(box[2] - box[0])
+
+
+def _wrap_for_width(draw, text: str, font, max_width: int) -> list[str]:
+    words = text.split()
+    if not words:
+        return []
+    lines: list[str] = []
+    current = ""
+    for word in words:
+        candidate = f"{current} {word}".strip()
+        if _text_width(draw, candidate, font) <= max_width:
+            current = candidate
+        else:
+            if current:
+                lines.append(current)
+                current = word
+            else:
+                lines.extend(textwrap.wrap(word, width=18) or [word])
+                current = ""
+    if current:
+        lines.append(current)
+    return lines
+
+
+def _draw_wrapped(draw, xy: tuple[int, int], text: str, font, fill, max_width: int,
+                  line_gap: int = 12, max_lines: int | None = None) -> int:
+    x, y = xy
+    lines = _wrap_for_width(draw, text, font, max_width)
+    if max_lines is not None and len(lines) > max_lines:
+        lines = lines[:max_lines]
+        lines[-1] = lines[-1].rstrip(". ") + "..."
+    line_h = draw.textbbox((0, 0), "Ag", font=font)[3] + line_gap
+    for line in lines:
+        draw.text((x, y), line, font=font, fill=fill)
+        y += line_h
+    return y
+
+
+def _trend_video_id(row: dict) -> str:
+    return f"trend_{int(row['id']):06d}"
+
+
+def _trend_source_label(row: dict) -> str:
+    if row.get("source_type", "").startswith("reddit"):
+        src = row.get("source_id") or "reddit"
+        return src if str(src).startswith("r/") else f"r/{src}"
+    author = row.get("author")
+    if author:
+        return f"@{author}"
+    return row.get("source_kind") or "trend"
+
+
+def _trend_hook(row: dict) -> str:
+    kind = row.get("source_kind") or "trend"
+    if kind == "reddit_discussion":
+        return "The comment section is already split on this"
+    if kind == "social_text":
+        return "This post is turning into the debate of the day"
+    return "The internet is already arguing about this"
+
+
+def _trend_metadata(row: dict, cfg: dict) -> dict:
+    title = (row.get("title") or "Viral internet moment").strip()
+    short_title = title[:82].rstrip()
+    source = _trend_source_label(row)
+    hashtags = ["#viral", "#funny", "#internetculture", "#streamers", "#gaming"]
+    return {
+        "youtube": {
+            "title": short_title,
+            "description": (
+                f"{_trend_hook(row)}.\n"
+                f"Source: {source} - {row.get('url')}\n"
+                "#Shorts #viral #internetculture"
+            ),
+            "tags": ["viral", "funny", "internet culture", "streamers", "gaming"],
+            "enabled": True,
+        },
+        "tiktok": {
+            "caption": f"{_trend_hook(row).lower()} #viral #funny #internetculture",
+            "hashtags": hashtags[:5],
+            "enabled": True,
+        },
+        "instagram": {
+            "caption": (
+                f"{_trend_hook(row)}\n\n"
+                "Screenshot-card commentary, with visible source attribution."
+            ),
+            "hashtags": hashtags,
+            "first_comment_hashtags": ["#reels", "#popculture", "#sports", "#livestreamfails"],
+            "enabled": True,
+        },
+    }
+
+
+def _render_trend_card_image(cfg: dict, row: dict, out_png: Path) -> None:
+    try:
+        from PIL import Image, ImageDraw
+    except ImportError:
+        raise RuntimeError("Pillow not installed. `pip install -r clipper/requirements.txt`.")
+
+    width = int(cfg["cut"]["width"])
+    height = int(cfg["cut"]["height"])
+    card_cfg = cfg.get("trend", {}).get("screenshot_card", {})
+    max_chars = int(card_cfg.get("max_text_chars", 420))
+
+    img = Image.new("RGB", (width, height), (10, 12, 16))
+    draw = ImageDraw.Draw(img)
+
+    # Subtle bitmap background: dark base, warm/cool diagonals, no external assets.
+    for y in range(height):
+        r = 10 + int(18 * y / height)
+        g = 12 + int(10 * y / height)
+        b = 16 + int(24 * y / height)
+        draw.line((0, y, width, y), fill=(r, g, b))
+    draw.rectangle((0, 0, 28, height), fill=(40, 190, 175))
+    draw.polygon([(width, 0), (width, 520), (width - 420, 0)], fill=(116, 92, 235))
+    draw.polygon([(0, height), (0, height - 380), (360, height)], fill=(229, 68, 87))
+
+    margin = 82
+    card_x0, card_y0 = margin, 270
+    card_x1, card_y1 = width - margin, height - 290
+    draw.rounded_rectangle((card_x0, card_y0, card_x1, card_y1), radius=42, fill=(247, 249, 252))
+    draw.rounded_rectangle((card_x0 + 8, card_y0 + 8, card_x1 - 8, card_y1 - 8), radius=34, outline=(224, 229, 236), width=3)
+
+    label_font = _font(38, bold=True)
+    title_font = _font(64, bold=True)
+    body_font = _font(45)
+    meta_font = _font(34)
+    small_font = _font(28)
+
+    source = _trend_source_label(row)
+    score = row.get("trend_score") or 0
+    badge = "TRENDING DISCUSSION"
+    if row.get("source_kind") == "social_text":
+        badge = "TRENDING POST"
+
+    y = card_y0 + 56
+    draw.rounded_rectangle((card_x0 + 54, y, card_x0 + 430, y + 64), radius=28, fill=(16, 20, 28))
+    draw.text((card_x0 + 82, y + 13), badge, font=small_font, fill=(255, 255, 255))
+    draw.rounded_rectangle((card_x1 - 188, y, card_x1 - 54, y + 64), radius=28, fill=(36, 211, 181))
+    draw.text((card_x1 - 153, y + 12), str(score), font=label_font, fill=(8, 43, 37))
+    y += 112
+
+    title = (row.get("title") or "Viral moment").strip()
+    title = title[:max_chars].strip()
+    y = _draw_wrapped(
+        draw,
+        (card_x0 + 56, y),
+        title,
+        title_font,
+        (12, 18, 28),
+        card_x1 - card_x0 - 112,
+        line_gap=16,
+        max_lines=6,
+    )
+    y += 30
+
+    comments = row.get("comments")
+    score_text = f"{row.get('score') or 0:,} upvotes" if row.get("score") is not None else "high engagement"
+    comments_text = f"{comments:,} comments" if comments is not None else "active discussion"
+    meta = f"{source}  |  {score_text}  |  {comments_text}"
+    y = _draw_wrapped(draw, (card_x0 + 56, y), meta, meta_font, (88, 98, 112), card_x1 - card_x0 - 112, line_gap=8, max_lines=3)
+    y += 46
+
+    draw.line((card_x0 + 56, y, card_x1 - 56, y), fill=(223, 229, 238), width=3)
+    y += 54
+
+    prompt = "Question: hilarious moment, valid outrage, or is everyone overreacting?"
+    if row.get("source_kind") == "reddit_discussion":
+        prompt = "Question: is the top comment right, or is the thread missing the point?"
+    _draw_wrapped(draw, (card_x0 + 56, y), prompt, body_font, (26, 32, 44), card_x1 - card_x0 - 112, line_gap=12, max_lines=4)
+
+    footer = f"Source shown for attribution: {source} - {row.get('url')}"
+    _draw_wrapped(draw, (margin, height - 205), footer, small_font, (215, 221, 230), width - margin * 2, line_gap=8, max_lines=2)
+    draw.text((margin, height - 116), "Context card - not a raw repost", font=small_font, fill=(150, 229, 218))
+
+    out_png.parent.mkdir(parents=True, exist_ok=True)
+    img.save(out_png)
+
+
+def _render_trend_card_video(cfg: dict, row: dict, out_mp4: Path) -> None:
+    if not shutil.which("ffmpeg"):
+        raise RuntimeError("ffmpeg not installed. `brew install ffmpeg`.")
+
+    width = int(cfg["cut"]["width"])
+    height = int(cfg["cut"]["height"])
+    fps = int(cfg["cut"]["fps"])
+    duration = float(cfg.get("trend", {}).get("screenshot_card", {}).get("duration_seconds", 12))
+
+    with tempfile.TemporaryDirectory(prefix="trend_card_") as tmpd:
+        png = Path(tmpd) / "card.png"
+        _render_trend_card_image(cfg, row, png)
+        out_mp4.parent.mkdir(parents=True, exist_ok=True)
+        cmd = [
+            "ffmpeg", "-y",
+            "-loop", "1", "-i", str(png),
+            "-f", "lavfi", "-i", f"anoisesrc=color=pink:duration={duration}:amplitude=0.018",
+            "-f", "lavfi", "-i", f"sine=frequency=176:duration={duration}",
+            "-filter_complex",
+            "[1:a]volume=0.10[a1];[2:a]volume=0.018[a2];"
+            "[a1][a2]amix=inputs=2:duration=first,alimiter=limit=0.85[a]",
+            "-map", "0:v", "-map", "[a]",
+            "-t", f"{duration:.3f}",
+            "-vf", f"scale={width}:{height},format=yuv420p",
+            "-r", str(fps),
+            "-c:v", "libx264", "-preset", "veryfast", "-crf", "20",
+            "-c:a", "aac", "-b:a", "128k",
+            "-movflags", "+faststart",
+            str(out_mp4),
+        ]
+        try:
+            _run(cmd)
+        except subprocess.CalledProcessError:
+            fallback = [
+                "ffmpeg", "-y",
+                "-loop", "1", "-i", str(png),
+                "-f", "lavfi", "-i", f"anullsrc=channel_layout=stereo:sample_rate=44100",
+                "-t", f"{duration:.3f}",
+                "-vf", f"scale={width}:{height},format=yuv420p",
+                "-r", str(fps),
+                "-c:v", "libx264", "-preset", "veryfast", "-crf", "20",
+                "-c:a", "aac", "-b:a", "128k",
+                "-movflags", "+faststart",
+                str(out_mp4),
+            ]
+            _run(fallback)
+
+
+def render_approved_trends(cfg: dict, trend_id: int | None = None) -> int:
+    duration = float(cfg.get("trend", {}).get("screenshot_card", {}).get("duration_seconds", 12))
+    with db.connect() as conn:
+        rows = conn.execute(
+            "SELECT * FROM trend_opportunities "
+            "WHERE status = 'approved' "
+            "AND rights_status = 'allowed' "
+            "AND recommended_format = 'screenshot_card' "
+            "AND (? IS NULL OR id = ?) "
+            "ORDER BY trend_score DESC, id DESC",
+            (trend_id, trend_id),
+        ).fetchall()
+        rows = [dict(r) for r in rows]
+
+    if not rows:
+        return 0
+
+    rendered = 0
+    for t in rows:
+        video_id = _trend_video_id(t)
+        out = CLIPS / f"{video_id}.mp4"
+        print(f"[cut] trend #{t['id']} -> screenshot_card score={t['trend_score']}")
+        try:
+            _render_trend_card_video(cfg, t, out)
+            with db.connect() as conn:
+                db.upsert_candidate(conn, {
+                    "source_type": "trend",
+                    "source_id": t["source_id"],
+                    "video_id": video_id,
+                    "url": t["url"],
+                    "title": t.get("title"),
+                    "channel": _trend_source_label(t),
+                    "published_at": t.get("published_at"),
+                    "duration_s": int(duration),
+                    "views": t.get("score"),
+                    "velocity": t.get("velocity"),
+                    "status": "rendered",
+                })
+                clip_id = db.insert(conn, "clips", {
+                    "video_id": video_id,
+                    "start_s": 0,
+                    "end_s": duration,
+                    "format": "screenshot_card",
+                    "hook": _trend_hook(t),
+                    "vo_script": "",
+                    "why_it_works": t.get("treatment"),
+                    "virality_score": t.get("trend_score"),
+                    "rendered_path": str(out),
+                    "metadata_json": db.jdumps(_trend_metadata(t, cfg)),
+                    "status": "pending_review",
+                })
+                conn.execute(
+                    "UPDATE trend_opportunities SET status = 'rendered', notes = ? WHERE id = ?",
+                    (f"rendered clip #{clip_id}: {out}", t["id"]),
+                )
+            rendered += 1
+            print(f"[cut]   trend card ready: {out.name}")
+        except subprocess.CalledProcessError as e:
+            err = (e.stderr or b"").decode(errors="ignore")[-400:]
+            print(f"[cut]   trend ffmpeg error: {err}", file=sys.stderr)
+            with db.connect() as conn:
+                conn.execute(
+                    "UPDATE trend_opportunities SET status = 'failed', notes = ? WHERE id = ?",
+                    (err, t["id"]),
+                )
+        except Exception as e:
+            print(f"[cut]   trend error: {e}", file=sys.stderr)
+            with db.connect() as conn:
+                conn.execute(
+                    "UPDATE trend_opportunities SET status = 'failed', notes = ? WHERE id = ?",
+                    (str(e), t["id"]),
+                )
+
+    return rendered
 
 
 # ---------- TTS --------------------------------------------------------------
@@ -251,6 +583,8 @@ def run(cfg: dict) -> int:
     if not shutil.which("ffmpeg"):
         raise RuntimeError("ffmpeg not installed. `brew install ffmpeg`.")
 
+    trend_rendered = render_approved_trends(cfg)
+
     with db.connect() as conn:
         clips = conn.execute(
             "SELECT * FROM clips WHERE status = 'scouted' ORDER BY virality_score DESC"
@@ -258,8 +592,11 @@ def run(cfg: dict) -> int:
         clips = [dict(c) for c in clips]
 
     if not clips:
-        print("[cut] no scouted clips")
-        return 0
+        if trend_rendered:
+            print(f"[cut] {trend_rendered} trend cards rendered -> pending_review")
+        else:
+            print("[cut] no scouted clips")
+        return trend_rendered
 
     n = 0
     for c in clips:
@@ -298,5 +635,6 @@ def run(cfg: dict) -> int:
             with db.connect() as conn:
                 db.set_status(conn, "clips", c["id"], "failed")
 
-    print(f"[cut] {n} rendered → pending_review")
-    return n
+    total = n + trend_rendered
+    print(f"[cut] {n} source clips, {trend_rendered} trend cards rendered -> pending_review")
+    return total

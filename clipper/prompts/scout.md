@@ -8,9 +8,9 @@ You will receive the full word-timestamped transcript of a long-form source vide
 
 1. **The VO must ADD information the footage does not already contain.** Allowed shapes:
    - A **ranked list** ("3 things everyone missed about X", #3 lands first to bait the loop)
-   - A **context explainer** (who is this person, why does this moment matter, what just changed)
+   - A **context explainer** (who is this person, why are people laughing or arguing, what just changed)
    - A **contrarian-but-fair take** that recontextualises what's on screen
-   - A **stakes / consequence** layer (what this means for the user / industry)
+   - A **stakes / consequence** layer (what this means for the creator, team, fandom, audience, or platform)
    
    ❌ **Forbidden**: any VO that just narrates what is visibly happening on screen (e.g. "He's pointing at the chart…"). If your draft VO does that, throw it out and rewrite.
 

@@ -27,10 +27,18 @@
 #   sports_highlight         League/team/broadcast footage; review rights first
 #   concert_clip             Live music/event footage; review rights first
 #   random_video             Random viral video; review rights first
+#   clipping_account_repost  Viral repost from another clipping account; find original/official source first
 #   independent_creator_repost  Independent TikTok/Reels/etc.; blocked by default
 #
-# Examples:
-# reddit_hot: r/LivestreamFail | kind=reddit_discussion
-# reddit_top: r/popculturechat | kind=reddit_discussion
-# rss: https://www.reddit.com/r/technology/top/.rss | kind=reddit_discussion
-# manual_url: https://x.com/example/status/123 | kind=social_text | title=viral AI tweet
+# Active broad viral/funny lane sources. These queue discussion/screenshot-card
+# opportunities only; linked creator videos still need separate rights review.
+reddit_top: r/LivestreamFail | kind=reddit_discussion
+reddit_top: r/gaming | kind=reddit_discussion
+reddit_top: r/sports | kind=reddit_discussion
+reddit_top: r/popculturechat | kind=reddit_discussion
+reddit_top: r/OutOfTheLoop | kind=reddit_discussion
+
+# Manual examples:
+# manual_url: https://x.com/example/status/123 | kind=social_text | title=viral streamer tweet
+# manual_url: https://www.youtube.com/watch?v=... | kind=official_clip | rights=allowed | permission=official | title=official sports highlight
+# manual_url: https://www.tiktok.com/@clipsaccount/video/... | kind=clipping_account_repost | rights=review_required | title=viral repost signal

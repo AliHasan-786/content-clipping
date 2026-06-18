@@ -1,7 +1,7 @@
 # Faceless Clip Pipeline configuration.
 # All tunables live here. Edit values, not code.
 
-niche: "What just happened — fast-turn commentary on trending moments in tech / AI / internet culture"
+niche: "Funny and viral moments across streamers, gaming, sports, pop culture, and internet culture"
 
 source:
   # How far back to look when polling each source.
@@ -15,7 +15,7 @@ trend:
   # They still require review before rendering/posting.
   lookback_hours: 24
   max_opportunities: 25
-  reddit_limit_per_source: 25
+  reddit_limit_per_source: 5
   min_trend_score: 45
   # Safe-by-default formats. These can become screenshot/commentary cards.
   allowed_source_kinds:
@@ -35,13 +35,15 @@ trend:
     - random_video
     - viral_clip
     - reddit_linked_video
+    - clipping_account_repost
   # Never queue these for reposting.
   blocked_source_kinds:
     - independent_creator_repost
     - raw_tiktok_repost
     - private_person_video
   screenshot_card:
-    default_music_bed: "lofi_news_bed"
+    default_music_bed: "generated_ambient_bed"
+    duration_seconds: 12
     require_visible_attribution: true
     max_text_chars: 420
 

@@ -9,15 +9,16 @@ Owner runs it daily. Daily human effort target: **~5 minutes** (approve queue + 
 ## 0. Strategy decisions (locked — do not re-litigate)
 
 - **Model:** Faceless, AI-voiceover. The voiceover ALWAYS adds information the source footage didn't have (ranking, context, "why it matters"). It NEVER just narrates what's on screen. This is the suppression defense and the monetization unlock — it is non-negotiable in the prompt design.
-- **Niche bias (chosen):** **"What just happened" — fast-turn commentary on trending moments in tech / AI / internet culture.** Rationale: high CPM, clip-friendly + fair-use-friendly source supply, owner can sanity-check the take instantly, and a *loose* niche still gives the algorithm an identity while leaving room to ride trends. The system chases trends *within* this lane rather than chasing everything.
+- **Niche bias (chosen):** **Funny and viral moments across streamers, gaming, sports, pop culture, and internet culture.** Rationale: the channel should feel like a fast, faceless commentator on what the internet is laughing at or arguing about today, not a narrow tech/AI page. The system chases broad viral demand while still using rights gates before rendering.
 - **Format priority:** (1) Ranked list ("3 things everyone missed about X"), (2) Context explainer over footage. Both are fully scriptable by AI with zero owner input.
-- **Trendjacking lane:** In addition to long-form source clipping, the system should find proven/trending moments that already have demand: iconic streamer/YouTuber moments, official event clips, evergreen funny clips, and same-day discourse from Reddit/X. This is a signal + packaging lane, not a license to rip. The system can render screenshot/commentary cards for public posts and can queue official/licensed/owned clips, but ambiguous movie/sports/concert/streamer footage requires owner rights review before rendering.
+- **Trendjacking lane:** In addition to long-form source clipping, the system should find proven/trending moments that already have demand: iconic streamer/YouTuber moments, official event clips, evergreen funny clips, sports/pop-culture discourse, gaming arguments, and same-day Reddit/X threads. This is a signal + packaging lane, not a license to rip. The system can render screenshot/commentary cards for public posts and can queue official/licensed/owned clips, but ambiguous movie/sports/concert/streamer footage requires owner rights review before rendering.
 - **Posting reality:**
   - YouTube Shorts → official Data API v3 → fully automated. ✅
   - Instagram Reels → Graph API (requires Business/Creator account linked to a FB Page) → fully automated. ✅
   - TikTok → Content Posting API. Unaudited app = **draft/SELF_ONLY only**; owner taps publish in-app (~10s/clip). Build the audited `direct-post` path behind a feature flag for later. ✅(with manual tap)
 - **Legal posture:** Source list biased to clip-encouraged / CC / news-commentary sources. Transformative voiceover layer is mandatory. No re-uploading raw viral clips. A `SOURCES.md` allowlist gates ingestion — nothing gets clipped unless its source is on the allowlist. `TREND_SOURCES.md` separately gates trendjacking opportunities and classifies each as `allowed`, `review_required`, or `blocked`.
 - **No independent-creator ripping:** The system must not repost an independent TikTok/Reels/Shorts creator's viral video just because it is working. It can use that as a signal to find an official/licensed alternative or make a commentary/screenshot card if the source is a public text post and attribution is visible.
+- **Clipping-account reposts:** A viral post from another clipping account can be used as proof that demand exists, especially when that account added no commentary or editing value. It still does not prove rights to the underlying footage. Treat it as `clipping_account_repost` / `review_required`: find the original/official source, confirm the clip is licensed/owned/public-domain/official, or transform the idea into a screenshot/commentary card.
 
 ---
 
@@ -98,6 +99,7 @@ clipper/
 - Classify every opportunity by `source_kind`:
   - **Allowed:** `social_text`, `reddit_discussion`, `official_clip`, `licensed_clip`, `public_domain_clip`, `creator_owned_clip`, `news_article`.
   - **Review-required:** `streamer_clip`, `movie_clip`, `sports_highlight`, `concert_clip`, `random_video`, `viral_clip`, `reddit_linked_video`.
+  - **Review-required repost signal:** `clipping_account_repost`.
   - **Blocked:** `independent_creator_repost`, `raw_tiktok_repost`, `private_person_video`.
 - Output to `trend_opportunities` table with:
   - `trend_score`, `rights_status`, `recommended_format`, `treatment`, `evidence_json`.
@@ -136,6 +138,7 @@ clipper/
   - subtle background motion/music,
   - optional VO that adds context/stakes,
   - comment-bait prompt that invites disagreement without fabricating facts.
+  - approved screenshot-card trends become normal `clips` rows with rendered MP4s and platform metadata, so they enter the same review/post path as source clips.
 
 ### Stage 5 — PACKAGE (`pipeline/package.py`)
 - Feed clip context to Claude using `prompts/package.md`. Returns per-platform metadata:
@@ -217,7 +220,7 @@ Or wire `clip run` to a morning cron job so the queue is ready when you wake up;
 - **M2 — Ingest path:** `source.py` + `ingest.py`. Get a real trending video downloaded + transcribed end to end.
 - **M3 — Trend lane:** `trend.py` + `TREND_SOURCES.md` + `prompts/trend.md`. Find daily Reddit/X/official-clip opportunities, classify rights posture, and queue screenshot-card/commentary treatments without raw creator ripping.
 - **M4 — Scout:** `scout.py` + `prompts/scout.md`. Feed a transcript, get back good clip candidates + VO scripts. Iterate on the prompt until clips are genuinely good.
-- **M5 — Cut:** `cut.py`. Vertical reframe + burned captions + TTS VO muxing. This is the heaviest ffmpeg work — expect iteration. Add screenshot-card rendering for trend opportunities.
+- **M5 — Cut:** `cut.py`. Vertical reframe + burned captions + TTS VO muxing. This is the heaviest ffmpeg work — expect iteration. Render approved screenshot-card trend opportunities into vertical MP4s.
 - **M6 — Package + Review:** `package.py` + dashboard. Full clip + trend queue visible and approvable.
 - **M7 — Post:** YouTube first (easiest), then Instagram, then TikTok draft path.
 - **M8 — Polish:** cron, auto-purge, reject-reason feedback loop, multi-account support (run the same pipeline for a 2nd niche/account — this is the real leverage).

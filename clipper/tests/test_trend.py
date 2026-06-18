@@ -30,6 +30,7 @@ CFG = {
             "random_video",
             "viral_clip",
             "reddit_linked_video",
+            "clipping_account_repost",
         ],
         "blocked_source_kinds": [
             "independent_creator_repost",
@@ -114,6 +115,29 @@ class TrendPipelineTests(unittest.TestCase):
         )
 
         self.assertEqual(opp.source_kind, "viral_clip")
+        self.assertEqual(opp.rights_status, "review_required")
+        self.assertEqual(opp.recommended_format, "rights_review")
+
+    def test_clipping_account_repost_needs_rights_review(self):
+        src = trend.TrendSource(
+            type="manual_url",
+            identifier="https://tiktok.com/@clipsaccount/video/1",
+            meta={"kind": "clipping_account_repost"},
+        )
+
+        opp = trend._make_opp(
+            src,
+            url=src.identifier,
+            title="viral repost from another clips page",
+            author="clipsaccount",
+            published_at=trend._utc_now_iso(),
+            score=50000,
+            comments=1200,
+            evidence={},
+            cfg=CFG,
+        )
+
+        self.assertEqual(opp.source_kind, "clipping_account_repost")
         self.assertEqual(opp.rights_status, "review_required")
         self.assertEqual(opp.recommended_format, "rights_review")
 

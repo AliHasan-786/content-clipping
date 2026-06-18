@@ -17,7 +17,7 @@
 # downloaded/transcribed into actual clips.
 
 # --- Seed examples (replace with your actual approved sources) ---
-# yt_handle: @AllInPodcast            # AI/tech commentary — clip-friendly culture
-# yt_handle: @lexfridman              # long-form, easy to find self-contained moments
-# yt_handle: @TheVerge                # tech news, fair-use commentary territory
-# rss: https://feeds.megaphone.fm/hardfork   # NYT Hard Fork podcast
+# yt_handle: @Ludwig                  # streamer/pop-culture commentary; review rights/context first
+# yt_handle: @GoodMythicalMorning     # evergreen funny moments; use only approved/clip-friendly sources
+# yt_handle: @FirstWeFeast            # celebrity/pop-culture interview moments; commentary layer required
+# rss: https://www.reddit.com/r/popculturechat/top/.rss

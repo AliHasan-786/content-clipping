@@ -13,6 +13,7 @@ import json
 import math
 import re
 import sys
+import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -250,7 +251,7 @@ def _make_opp(
     )
 
 
-def _poll_reddit(src: TrendSource, cfg: dict) -> list[TrendOpportunity]:
+def _poll_reddit_json(src: TrendSource, cfg: dict) -> list[TrendOpportunity]:
     try:
         import requests
     except ImportError:
@@ -296,6 +297,89 @@ def _poll_reddit(src: TrendSource, cfg: dict) -> list[TrendOpportunity]:
     return out
 
 
+def _poll_reddit_rss(src: TrendSource, cfg: dict, json_error: str | None = None) -> list[TrendOpportunity]:
+    try:
+        import requests
+    except ImportError:
+        raise RuntimeError("requests not installed. `pip install -r clipper/requirements.txt`.")
+
+    subreddit = _normalize_reddit_name(src.identifier)
+    sort = "hot" if src.type == "reddit_hot" else "top"
+    url = f"https://www.reddit.com/r/{subreddit}/{sort}/.rss"
+    params = {"limit": int(cfg["trend"].get("reddit_limit_per_source", 25))}
+    if sort == "top":
+        params["t"] = "day"
+
+    resp = requests.get(
+        url,
+        params=params,
+        headers={"User-Agent": "Mozilla/5.0 (compatible; content-clipping-trend-scout/0.1)"},
+        timeout=30,
+    )
+    resp.raise_for_status()
+    root = ET.fromstring(resp.content)
+    ns = {"atom": "http://www.w3.org/2005/Atom"}
+
+    out: list[TrendOpportunity] = []
+    for idx, entry in enumerate(root.findall("atom:entry", ns)):
+        title = (entry.findtext("atom:title", default="", namespaces=ns) or "").strip()
+        link_el = entry.find("atom:link", ns)
+        permalink = link_el.attrib.get("href", "") if link_el is not None else ""
+        if not title or not permalink:
+            continue
+        updated = (
+            entry.findtext("atom:updated", default="", namespaces=ns)
+            or entry.findtext("atom:published", default="", namespaces=ns)
+            or _utc_now_iso()
+        )
+        if _hours_since(updated) > int(cfg["trend"]["lookback_hours"]):
+            continue
+        author = entry.findtext("atom:author/atom:name", default="", namespaces=ns) or None
+        # Reddit RSS omits score/comment counts. Feed rank is still a trend
+        # signal, so synthesize conservative engagement values for scoring.
+        synthetic_score = max(900, 12000 - idx * 800)
+        synthetic_comments = max(35, 650 - idx * 40)
+        evidence = {
+            "subreddit": subreddit,
+            "sort": sort,
+            "rss_rank": idx + 1,
+            "score_source": "synthetic_from_reddit_rss_rank",
+            "json_error": json_error,
+        }
+        local_src = TrendSource(
+            type=src.type,
+            identifier=src.identifier,
+            meta={**src.meta, "kind": src.meta.get("kind", "reddit_discussion")},
+        )
+        out.append(
+            _make_opp(
+                local_src,
+                permalink,
+                title,
+                author,
+                updated,
+                synthetic_score,
+                synthetic_comments,
+                evidence,
+                cfg,
+            )
+        )
+    return out
+
+
+def _poll_reddit(src: TrendSource, cfg: dict) -> list[TrendOpportunity]:
+    try:
+        rows = _poll_reddit_rss(src, cfg)
+        if rows:
+            return rows
+    except Exception as rss_error:
+        try:
+            return _poll_reddit_json(src, cfg)
+        except Exception as json_error:
+            raise RuntimeError(f"rss failed: {rss_error}; json failed: {json_error}")
+    return _poll_reddit_json(src, cfg)
+
+
 def _poll_rss(src: TrendSource, cfg: dict) -> list[TrendOpportunity]:
     try:
         import feedparser
@@ -333,6 +417,7 @@ def _manual(src: TrendSource, cfg: dict) -> list[TrendOpportunity]:
 
 def discover(sources: list[TrendSource], cfg: dict) -> list[TrendOpportunity]:
     found: list[TrendOpportunity] = []
+    max_keep = int(cfg.get("trend", {}).get("max_opportunities", 25))
     for src in sources:
         try:
             if src.type in {"reddit_hot", "reddit_top"}:
@@ -343,6 +428,8 @@ def discover(sources: list[TrendSource], cfg: dict) -> list[TrendOpportunity]:
                 found.extend(_manual(src, cfg))
         except Exception as e:
             print(f"[trend] {src.type}:{src.identifier} → {e}", file=sys.stderr)
+        if len(found) >= max_keep:
+            break
     return found
 
 
