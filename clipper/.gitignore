@@ -3,6 +3,7 @@ secrets/
 data/downloads/
 data/clips/
 data/transcripts/
+data/polish/
 clips.db
 clips.db-journal
 __pycache__/

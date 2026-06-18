@@ -508,6 +508,10 @@
         Approved clips now have posting order suggestions.
       {% elif notice == "schedule_empty" %}
         No approved clips were available to schedule.
+      {% elif notice == "polish_created" %}
+        External editor handoff package created for that clip.
+      {% elif notice == "polish_failed" %}
+        Could not create the external editor handoff package. Check the terminal for details.
       {% else %}
         {{notice}}
       {% endif %}
@@ -651,6 +655,7 @@
           {% set variants = c.metadata.get('variants') or clip_ai.get('variants') or {} %}
           {% set source_search = c.metadata.get('source_search') or {} %}
           {% set plan = c.metadata.get('posting_plan') or {} %}
+          {% set polish = c.metadata.get('polish_handoff') or {} %}
 
           <div class="ai-actions">
             <form method="post" action="/clip/{{c.id}}/ai-assist">
@@ -669,6 +674,16 @@
               <input type="hidden" name="action" value="Make all platform copy safer for rights, context, and brand suitability.">
               <button type="submit" {% if not ai_ready %}disabled{% endif %}>Safer</button>
             </form>
+            {% if c.rendered_path %}
+              <form method="post" action="/clip/{{c.id}}/polish">
+                <input type="hidden" name="provider" value="palmier_pro">
+                <button type="submit">Palmier handoff</button>
+              </form>
+              <form method="post" action="/clip/{{c.id}}/polish">
+                <input type="hidden" name="provider" value="descript">
+                <button type="submit">Descript handoff</button>
+              </form>
+            {% endif %}
           </div>
 
           {% if plan %}
@@ -684,6 +699,14 @@
               {{safety.get('status', 'review')}}
               {% if safety.get('flags') %} · {{safety.get('flags', [])|join(', ')}}{% endif %}
               {% if safety.get('note') %}<div>{{safety.get('note')}}</div>{% endif %}
+            </div>
+          {% endif %}
+
+          {% if polish %}
+            <div class="ai-panel">
+              <strong>Polish handoff:</strong>
+              {{polish.get('provider')}} · {{polish.get('created_at')}}
+              <div>{{polish.get('path')}}</div>
             </div>
           {% endif %}
 

@@ -181,6 +181,25 @@ def integrations_cmd(cfg: dict):
     click.echo(f"\nready integrations: {ready}")
 
 
+@cli.command(name="polish")
+@click.option("--clip-id", type=int, required=True, help="Rendered clip id to package for polish.")
+@click.option(
+    "--provider",
+    type=click.Choice(["palmier_pro", "descript", "runway"]),
+    default="palmier_pro",
+    show_default=True,
+    help="External tool handoff target.",
+)
+@click.option("--copy-media", is_flag=True, help="Copy MP4/source/transcript into the handoff folder.")
+@click.pass_obj
+def polish_cmd(cfg: dict, clip_id: int, provider: str, copy_media: bool):
+    """Create a handoff package for optional external AI editor polish."""
+    from pipeline import polish
+
+    out_dir = polish.export_handoff(cfg, clip_id=clip_id, provider=provider, copy_media=copy_media)
+    click.echo(f"polish handoff -> {out_dir}")
+
+
 @cli.command(name="purge")
 @click.pass_obj
 def purge_cmd(cfg: dict):

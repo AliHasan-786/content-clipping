@@ -157,6 +157,7 @@ clipper/
   - Descript API/MCP: import rendered/source media for Underlord edits such as captions, Studio Sound, filler removal, and highlight variations.
   - Cloud render APIs: use only for template/card scaling when local ffmpeg becomes a bottleneck.
   - The dashboard must always show the final MP4, regardless of which renderer produced it.
+- `clip polish --clip-id N --provider palmier_pro|descript|runway` creates a local handoff package in `data/polish/` with `manifest.json`, `brief.md`, platform metadata, source context, and optional media copies.
 
 ### Stage 5 — PACKAGE (`pipeline/package.py`)
 - Feed clip context to Claude using `prompts/package.md`. Returns per-platform metadata:
@@ -234,6 +235,7 @@ clip trends     # run only the trendjacking discovery lane
 clip review     # opens http://127.0.0.1:8765. View full MP4s, approve/reject, optionally post.
 clip schedule   # suggest posting order for approved clips
 clip integrations # show optional AI editor/render/publisher readiness
+clip polish --clip-id 1 --provider palmier_pro # create external editor handoff
 clip post       # CLI fallback for approved clips. YT+IG auto; TikTok → tap publish on phone.
 ```
 Or wire `clip run` to a morning cron job so the queue is ready when you wake up; you just review and post from the dashboard.

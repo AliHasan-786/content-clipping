@@ -17,6 +17,7 @@ clipper/clips.db-*
 clipper/data/downloads/
 clipper/data/clips/
 clipper/data/transcripts/
+clipper/data/polish/
 
 # Node / Next.js
 node_modules/

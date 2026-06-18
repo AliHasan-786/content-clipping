@@ -8,6 +8,7 @@ the per-card form posts. The owner's entire daily job lives here.
   POST /clip/{id}/save   → persist edited per-platform metadata + toggles
   POST /clip/{id}/approve → mark approved
   POST /clip/{id}/reject  → mark rejected, capture reason
+  POST /clip/{id}/polish  → create external editor handoff package
   POST /trend/{id}/approve → approve non-blocked trend treatment
   POST /trend/{id}/reject  → reject/dismiss trend opportunity
 """
@@ -266,6 +267,26 @@ async def ai_assist(clip_id: int, request: Request):
     except Exception as exc:
         return RedirectResponse(
             url=f"/?show=pending_review&notice=ai_failed#clip-{clip_id}",
+            status_code=303,
+        )
+
+
+@app.post("/clip/{clip_id}/polish")
+async def polish_handoff(clip_id: int, request: Request):
+    cfg = _load_config()
+    form = await request.form()
+    provider = (form.get("provider") or "palmier_pro").strip()
+    copy_media = form.get("copy_media") == "on"
+    try:
+        from pipeline import polish
+        polish.export_handoff(cfg, clip_id=clip_id, provider=provider, copy_media=copy_media)
+        return RedirectResponse(
+            url=f"/?show=pending_review&notice=polish_created#clip-{clip_id}",
+            status_code=303,
+        )
+    except Exception:
+        return RedirectResponse(
+            url=f"/?show=pending_review&notice=polish_failed#clip-{clip_id}",
             status_code=303,
         )
 

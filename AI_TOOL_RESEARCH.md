@@ -127,11 +127,12 @@ Repo status:
 - Added optional integration readiness tracking in `clipper/pipeline/integrations.py`.
 - Added `clip integrations` to print editor/render/publisher readiness.
 - Dashboard now shows optional AI editing integrations separately from platform posting credentials.
+- Added `clip polish --clip-id N --provider palmier_pro|descript|runway` to create local handoff packages for external editor polish.
+- Dashboard clip cards can create Palmier or Descript handoff packages and record the package path on the clip.
 
 Next useful improvement:
-- Add a `clip polish --provider descript|palmier --clip-id N` command once a real provider is connected.
 - Add an `external_render_provider` field on clips so the dashboard can show whether a video came from local ffmpeg, Descript, Palmier, or a cloud renderer.
-- For Palmier, export an edit decision package: rendered MP4, original source, VO script, captions, and suggested b-roll prompts.
+- For Palmier, upgrade the handoff package into a direct MCP action after the local MCP server is available.
 - For Descript, build an import/edit/publish adapter after a token or MCP connector is available.
 
 ### Trend Discovery
