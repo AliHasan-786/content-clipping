@@ -151,17 +151,21 @@ clipper/
 
 ### Stage 6 — REVIEW (`dashboard/app.py`)
 - `clip review` launches FastAPI at `localhost:8765`.
+- Open the dashboard through the server URL (`http://127.0.0.1:8765`), not by opening `dashboard/templates/review.html` directly. The template file is not a standalone app.
 - One page: card per `pending_review` clip showing:
   - Video player (the rendered MP4)
+  - Open-full-video and download links for the rendered MP4
   - `why_it_works` + `virality_score`
   - Editable captions/hashtags per platform (pre-filled; edit optional)
   - Per-platform toggles (post to YT? IG? TikTok?)
   - ✓ Approve  /  ✗ Reject buttons
+- Top-level queue summary shows ready-to-review clips, approved clips, posted clips, and same-day trend ideas.
+- Posting setup chips show whether YouTube, Instagram, and TikTok credentials are connected before the dashboard allows direct posting.
 - Approve → status `approved`. Reject → `rejected` (+ optional reason to improve scout over time).
 - **This is the owner's entire daily job.** ~5 min.
 
 ### Stage 7 — POST (`pipeline/post.py`)
-- `clip post` (or auto-run after review) publishes all `approved` clips:
+- `clip post` or the dashboard's **Post approved** button publishes all `approved` clips:
   - **YouTube:** Data API v3 `videos.insert`, category/privacy/`madeForKids=false`, schedule or immediate. Fully auto.
   - **Instagram:** Graph API — create media container (Reels), poll status, publish. Fully auto. (Needs IG Business + linked FB Page + long-lived token.)
   - **TikTok:** Content Posting API. **Unaudited path:** `PULL_FROM_URL` or `FILE_UPLOAD` to draft/inbox (`SELF_ONLY`). System pushes a phone notification / prints a checklist; owner taps publish in TikTok app. **Audited path** (feature flag `tiktok_direct_post: true`): direct publish once app passes audit.
@@ -208,10 +212,10 @@ Put all keys in `.env`. Never commit it.
 ```bash
 clip run        # trend discovery + stages 1–5. ~10–20 min unattended.
 clip trends     # run only the trendjacking discovery lane
-clip review     # opens localhost:8765. Approve/reject. ~5 min.
-clip post       # publishes approved. YT+IG auto; TikTok → tap publish on phone.
+clip review     # opens http://127.0.0.1:8765. View full MP4s, approve/reject, optionally post.
+clip post       # CLI fallback for approved clips. YT+IG auto; TikTok → tap publish on phone.
 ```
-Or wire `clip run` to a morning cron job so the queue is ready when you wake up; you just `review` + `post`.
+Or wire `clip run` to a morning cron job so the queue is ready when you wake up; you just review and post from the dashboard.
 
 ---
 

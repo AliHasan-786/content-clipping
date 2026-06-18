@@ -13,8 +13,10 @@ the per-card form posts. The owner's entire daily job lives here.
 """
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
+from typing import Optional
 
 import yaml
 from fastapi import FastAPI, Form, HTTPException, Request
@@ -26,6 +28,12 @@ sys.path.insert(0, str(ROOT))
 
 import db  # noqa: E402
 
+try:
+    from dotenv import load_dotenv  # noqa: E402
+    load_dotenv(ROOT / ".env")
+except Exception:
+    pass
+
 app = FastAPI(title="Clipper Review")
 templates = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
 
@@ -33,6 +41,36 @@ templates = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
 def _load_config() -> dict:
     with open(ROOT / "config.yaml") as f:
         return yaml.safe_load(f)
+
+
+def _posting_status(cfg: dict) -> list[dict]:
+    def env_path_exists(name: str, default: str) -> bool:
+        return Path(os.environ.get(name, default)).exists()
+
+    post_cfg = cfg.get("post", {})
+    platforms = [
+        {
+            "name": "YouTube",
+            "enabled": bool(post_cfg.get("youtube", {}).get("enabled")),
+            "configured": env_path_exists("YT_TOKEN_FILE", "secrets/yt_token.json"),
+            "needs": "OAuth token file from first YouTube login",
+        },
+        {
+            "name": "Instagram",
+            "enabled": bool(post_cfg.get("instagram", {}).get("enabled")),
+            "configured": all(os.environ.get(k) for k in ["IG_USER_ID", "IG_ACCESS_TOKEN", "IG_PUBLIC_CLIP_BASE"]),
+            "needs": "IG_USER_ID, IG_ACCESS_TOKEN, IG_PUBLIC_CLIP_BASE",
+        },
+        {
+            "name": "TikTok",
+            "enabled": bool(post_cfg.get("tiktok", {}).get("enabled")),
+            "configured": bool(os.environ.get("TIKTOK_ACCESS_TOKEN")),
+            "needs": "TIKTOK_ACCESS_TOKEN",
+        },
+    ]
+    for platform in platforms:
+        platform["ready"] = bool(platform["enabled"] and platform["configured"])
+    return platforms
 
 
 def _queue_trend_source_candidate(trend_id: int) -> None:
@@ -70,7 +108,8 @@ def _queue_trend_source_candidate(trend_id: int) -> None:
 
 
 @app.get("/", response_class=HTMLResponse)
-def index(request: Request, show: str = "pending_review"):
+def index(request: Request, show: str = "pending_review", notice: Optional[str] = None):
+    cfg = _load_config()
     with db.connect() as conn:
         if show == "all":
             rows = conn.execute(
@@ -98,6 +137,11 @@ def index(request: Request, show: str = "pending_review"):
         trend_counts = dict((r["status"], r["c"]) for r in conn.execute(
             "SELECT status, COUNT(*) c FROM trend_opportunities GROUP BY status"
         ).fetchall())
+        recent_posts = conn.execute(
+            "SELECT p.*, c.hook AS clip_hook "
+            "FROM posts p LEFT JOIN clips c ON c.id = p.clip_id "
+            "ORDER BY p.id DESC LIMIT 8"
+        ).fetchall()
 
     clips = []
     for r in rows:
@@ -111,6 +155,7 @@ def index(request: Request, show: str = "pending_review"):
         d["evidence"] = db.jloads(d.get("evidence_json")) or {}
         trends.append(d)
 
+    posting_status = _posting_status(cfg)
     return templates.TemplateResponse(
         "review.html",
         {
@@ -120,6 +165,10 @@ def index(request: Request, show: str = "pending_review"):
             "counts": counts,
             "trends": trends,
             "trend_counts": trend_counts,
+            "posting_status": posting_status,
+            "post_ready_count": sum(1 for p in posting_status if p["ready"]),
+            "recent_posts": [dict(r) for r in recent_posts],
+            "notice": notice,
         },
     )
 
@@ -170,7 +219,7 @@ async def save(clip_id: int, request: Request):
 def approve(clip_id: int):
     with db.connect() as conn:
         conn.execute("UPDATE clips SET status = 'approved' WHERE id = ?", (clip_id,))
-    return RedirectResponse(url="/", status_code=303)
+    return RedirectResponse(url="/?show=approved", status_code=303)
 
 
 @app.post("/clip/{clip_id}/reject")
@@ -183,6 +232,20 @@ async def reject(clip_id: int, request: Request):
             (reason, clip_id),
         )
     return RedirectResponse(url="/", status_code=303)
+
+
+@app.post("/post-approved")
+def post_approved():
+    cfg = _load_config()
+    if not any(p["ready"] for p in _posting_status(cfg)):
+        return RedirectResponse(url="/?show=approved&notice=posting_needs_credentials", status_code=303)
+
+    from pipeline import post as poster
+
+    posted = poster.run(cfg)
+    if posted:
+        return RedirectResponse(url="/?show=posted&notice=posted", status_code=303)
+    return RedirectResponse(url="/?show=approved&notice=post_attempt_failed", status_code=303)
 
 
 @app.post("/trend/{trend_id}/approve")

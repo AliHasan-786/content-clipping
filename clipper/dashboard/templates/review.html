@@ -2,352 +2,739 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>Clipper Review</title>
+<title>Viral Clip Queue</title>
 <meta name="viewport" content="width=device-width,initial-scale=1">
+<script>
+  if (window.location.protocol === "file:") {
+    window.location.replace("http://127.0.0.1:8765/?show=pending_review");
+  }
+</script>
 <style>
   :root {
-    --bg: #0b0d10; --panel: #14181d; --line: #232a31;
-    --text: #e7ecef; --muted: #8a98a5; --accent: #4fd1c5;
-    --ok: #22c55e; --bad: #ef4444; --warn: #eab308;
+    --bg: #090c0f;
+    --panel: #12171d;
+    --panel-2: #171d24;
+    --line: #26313b;
+    --text: #eef3f5;
+    --muted: #91a0ad;
+    --soft: #c9d3d9;
+    --accent: #4fd1c5;
+    --ok: #22c55e;
+    --bad: #ef4444;
+    --warn: #f59e0b;
   }
+  * { box-sizing: border-box; }
   body {
-    margin: 0; background: var(--bg); color: var(--text);
-    font: 14px/1.45 system-ui,-apple-system,"Segoe UI",Helvetica,sans-serif;
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Helvetica, sans-serif;
   }
-  header {
-    position: sticky; top: 0; z-index: 5; background: rgba(11,13,16,.92);
-    backdrop-filter: blur(8px); border-bottom: 1px solid var(--line);
-    padding: 12px 20px; display: flex; align-items: center; gap: 16px;
+  .app-header {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background: rgba(9, 12, 15, .94);
+    border-bottom: 1px solid var(--line);
+    backdrop-filter: blur(10px);
   }
-  header h1 { font-size: 16px; margin: 0; letter-spacing: .02em; }
-  header nav a {
-    color: var(--muted); text-decoration: none; margin-right: 14px;
-    padding: 4px 8px; border-radius: 6px; font-size: 13px;
+  .header-inner {
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: 14px 20px;
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    gap: 18px;
+    align-items: center;
   }
-  header nav a.active { color: var(--text); background: var(--panel); }
-  main { max-width: 1100px; margin: 0 auto; padding: 24px 20px; }
-  .empty {
-    text-align: center; color: var(--muted); padding: 80px 0;
-    border: 1px dashed var(--line); border-radius: 12px;
+  .brand h1 {
+    margin: 0;
+    font-size: 18px;
+    line-height: 1.1;
+    letter-spacing: 0;
   }
-  .section-title {
-    display: flex; align-items: baseline; justify-content: space-between;
-    gap: 12px; margin: 0 0 14px;
+  .brand div {
+    color: var(--muted);
+    font-size: 12px;
+    margin-top: 3px;
   }
-  .section-title h2 { margin: 0; font-size: 15px; letter-spacing: .02em; }
-  .section-title .meta-line { margin-top: 0; }
-  .trend-grid { display: grid; gap: 12px; margin-bottom: 24px; }
-  .trend-card {
-    background: var(--panel); border: 1px solid var(--line);
-    border-radius: 10px; padding: 14px;
+  nav {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
   }
-  .trend-card.blocked { opacity: .78; }
-  .trend-head {
-    display: flex; gap: 10px; align-items: center; justify-content: space-between;
-    margin-bottom: 8px;
+  nav a {
+    color: var(--muted);
+    text-decoration: none;
+    padding: 7px 10px;
+    border-radius: 8px;
+    font-size: 13px;
   }
-  .trend-title { margin: 0; font-size: 14px; line-height: 1.35; }
-  .trend-title a { color: var(--text); text-decoration: none; }
-  .trend-title a:hover { color: var(--accent); }
-  .trend-meta {
-    display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
-    color: var(--muted); font-size: 12px; margin-bottom: 8px;
+  nav a.active {
+    color: var(--text);
+    background: var(--panel-2);
+    border: 1px solid var(--line);
   }
-  .trend-treatment { color: #cbd5d8; margin: 0 0 8px; }
-  .trend-actions {
-    display: flex; flex-wrap: wrap; gap: 10px; align-items: center;
-    margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line);
+  .header-actions {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    justify-content: flex-end;
   }
-  .trend-actions form { margin: 0; }
-  .card {
-    display: grid; grid-template-columns: 320px 1fr; gap: 20px;
-    background: var(--panel); border: 1px solid var(--line);
-    border-radius: 12px; padding: 18px; margin-bottom: 22px;
+  main {
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: 22px 20px 36px;
   }
-  .card video {
-    width: 100%; max-height: 560px; background: #000; border-radius: 8px;
+  .summary-strip {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 10px;
+    margin-bottom: 16px;
   }
-  .meta-line { color: var(--muted); font-size: 12px; margin-top: 6px; }
-  .score {
-    display: inline-block; padding: 2px 8px; border-radius: 999px;
-    background: #1f2937; color: var(--accent); font-weight: 600;
+  .metric {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 12px 14px;
+  }
+  .metric span {
+    display: block;
+    color: var(--muted);
     font-size: 12px;
   }
-  h3 { margin: 0 0 6px; font-size: 15px; }
-  .hook { font-size: 16px; font-weight: 600; margin-bottom: 4px; }
-  .why  { color: var(--muted); margin-bottom: 12px; }
-  details { margin-bottom: 10px; }
-  details > summary {
-    cursor: pointer; color: var(--muted); padding: 4px 0;
-    font-size: 12px; user-select: none;
+  .metric strong {
+    display: block;
+    font-size: 24px;
+    line-height: 1.1;
+    margin-top: 4px;
   }
-  pre {
-    background: #0f1217; border: 1px solid var(--line); border-radius: 6px;
-    padding: 10px; white-space: pre-wrap; max-height: 220px; overflow-y: auto;
-    font-size: 12px; color: #cbd5d8;
+  .notice,
+  .posting-panel {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 12px 14px;
+    margin-bottom: 16px;
+    color: var(--soft);
   }
-  form.platforms { display: grid; gap: 14px; }
-  .platform {
-    border: 1px solid var(--line); border-radius: 8px; padding: 12px;
-    background: #10141a;
+  .notice.warning {
+    border-color: rgba(245, 158, 11, .55);
+    background: rgba(245, 158, 11, .08);
   }
-  .platform header {
-    position: static; background: transparent; padding: 0 0 8px;
-    border-bottom: none; display: flex; align-items: center;
-    justify-content: space-between; backdrop-filter: none;
+  .posting-panel {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    justify-content: space-between;
+    align-items: center;
   }
-  .platform h4 { margin: 0; font-size: 13px; letter-spacing: .04em;
-                 text-transform: uppercase; color: var(--muted); }
-  label.switch { font-size: 12px; color: var(--muted); cursor: pointer; }
-  label.switch input { vertical-align: -2px; margin-right: 4px; }
-  input[type=text], textarea {
-    width: 100%; box-sizing: border-box;
-    background: #0b0e12; color: var(--text);
-    border: 1px solid var(--line); border-radius: 6px;
-    padding: 8px 10px; font: inherit; resize: vertical;
+  .setup-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
   }
-  textarea { min-height: 56px; }
-  .row-actions {
-    display: flex; gap: 10px; align-items: center; margin-top: 12px;
-    padding-top: 12px; border-top: 1px solid var(--line);
+  .chip,
+  .status-pill,
+  .score {
+    display: inline-flex;
+    align-items: center;
+    min-height: 24px;
+    padding: 3px 9px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 600;
+    background: #202a34;
+    color: var(--muted);
   }
+  .chip.ready { color: #bbf7d0; background: rgba(34, 197, 94, .16); }
+  .chip.missing { color: #fed7aa; background: rgba(245, 158, 11, .16); }
+  .chip.off { color: var(--muted); }
+  .score {
+    color: var(--accent);
+    background: rgba(79, 209, 197, .12);
+  }
+  .status-pill {
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    font-size: 11px;
+  }
+  .section-title {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    align-items: end;
+    margin: 22px 0 12px;
+  }
+  .section-title h2 {
+    margin: 0;
+    font-size: 18px;
+    line-height: 1.15;
+  }
+  .meta-line {
+    color: var(--muted);
+    font-size: 12px;
+  }
+  .empty {
+    text-align: center;
+    color: var(--muted);
+    padding: 48px 20px;
+    border: 1px dashed var(--line);
+    border-radius: 8px;
+    background: rgba(18, 23, 29, .45);
+  }
+  .clip-card {
+    display: grid;
+    grid-template-columns: minmax(280px, 390px) minmax(0, 1fr);
+    gap: 18px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 16px;
+    margin-bottom: 16px;
+  }
+  .media-panel video {
+    display: block;
+    width: 100%;
+    aspect-ratio: 9 / 16;
+    max-height: 68vh;
+    background: #000;
+    border-radius: 6px;
+    object-fit: contain;
+  }
+  .preview-note {
+    margin-top: 10px;
+    color: var(--muted);
+    font-size: 12px;
+    border-left: 3px solid var(--accent);
+    padding-left: 9px;
+  }
+  .media-actions,
+  .row-actions,
+  .trend-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: center;
+  }
+  .media-actions { margin-top: 10px; }
+  .media-actions a,
   button {
-    cursor: pointer; border: 1px solid var(--line); background: #1c2229;
-    color: var(--text); padding: 8px 14px; border-radius: 6px;
-    font: inherit; font-weight: 500;
+    cursor: pointer;
+    color: var(--text);
+    text-decoration: none;
+    background: #1c242d;
+    border: 1px solid var(--line);
+    border-radius: 7px;
+    padding: 8px 12px;
+    font: inherit;
+    font-weight: 600;
   }
   button.primary { background: var(--ok); border-color: var(--ok); color: #052e16; }
-  button.danger  { background: var(--bad); border-color: var(--bad); color: #fff; }
-  button:hover   { filter: brightness(1.1); }
-  .source-link { color: var(--muted); font-size: 12px; }
-  .source-link a { color: var(--accent); }
-  .preview-note {
-    margin-top: 8px; color: var(--muted); font-size: 12px;
-    border-left: 3px solid var(--accent); padding-left: 8px;
+  button.danger { background: var(--bad); border-color: var(--bad); color: #fff; }
+  button:disabled {
+    cursor: not-allowed;
+    opacity: .55;
   }
-  .media-actions {
-    display: flex; flex-wrap: wrap; gap: 10px; margin-top: 10px;
+  button.primary:disabled {
+    background: #1c242d;
+    border-color: var(--line);
+    color: var(--muted);
   }
-  .media-actions a {
-    color: var(--text); text-decoration: none; background: #1c2229;
-    border: 1px solid var(--line); border-radius: 6px; padding: 7px 10px;
-    font-size: 12px; font-weight: 500;
+  .media-actions a:hover,
+  button:not(:disabled):hover {
+    filter: brightness(1.08);
   }
-  .media-actions a:hover { filter: brightness(1.1); }
-  .status-pill {
-    display: inline-block; padding: 2px 8px; border-radius: 999px;
-    font-size: 11px; background: #1f2937; color: var(--muted);
-    text-transform: uppercase; letter-spacing: .08em;
+  .source-link {
+    color: var(--muted);
+    font-size: 12px;
+    margin-top: 10px;
+  }
+  .source-link a,
+  .trend-title a {
+    color: var(--accent);
+    text-decoration: none;
+  }
+  .source-link a:hover,
+  .trend-title a:hover {
+    text-decoration: underline;
+  }
+  .clip-copy {
+    min-width: 0;
+  }
+  .hook {
+    font-size: 20px;
+    font-weight: 750;
+    line-height: 1.18;
+    margin-bottom: 6px;
+  }
+  .why {
+    color: var(--muted);
+    margin-bottom: 12px;
+    max-width: 720px;
+  }
+  details { margin-bottom: 12px; }
+  details > summary {
+    cursor: pointer;
+    color: var(--muted);
+    padding: 4px 0;
+    user-select: none;
+  }
+  pre {
+    background: #0c1015;
+    border: 1px solid var(--line);
+    border-radius: 7px;
+    padding: 10px;
+    white-space: pre-wrap;
+    max-height: 220px;
+    overflow-y: auto;
+    color: var(--soft);
+    font-size: 12px;
+  }
+  form.platforms {
+    display: grid;
+    gap: 10px;
+  }
+  .platform {
+    border: 1px solid var(--line);
+    border-radius: 7px;
+    padding: 12px;
+    background: #0f1419;
+  }
+  .platform header {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    align-items: center;
+    margin-bottom: 8px;
+  }
+  .platform h4 {
+    margin: 0;
+    font-size: 12px;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  label.switch {
+    color: var(--muted);
+    font-size: 12px;
+    cursor: pointer;
+  }
+  input[type=text],
+  textarea {
+    width: 100%;
+    margin-top: 8px;
+    background: #090d11;
+    color: var(--text);
+    border: 1px solid var(--line);
+    border-radius: 7px;
+    padding: 9px 10px;
+    font: inherit;
+    resize: vertical;
+  }
+  textarea { min-height: 64px; }
+  .row-actions {
+    margin-top: 4px;
+    padding-top: 12px;
+    border-top: 1px solid var(--line);
+  }
+  .trend-grid {
+    display: grid;
+    gap: 12px;
+    margin-bottom: 24px;
+  }
+  .trend-card {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 14px;
+  }
+  .trend-card.blocked { opacity: .72; }
+  .trend-head {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    align-items: start;
+    margin-bottom: 8px;
+  }
+  .trend-title {
+    margin: 0;
+    font-size: 16px;
+    line-height: 1.32;
+  }
+  .trend-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+    color: var(--muted);
+    font-size: 12px;
+    margin-bottom: 8px;
+  }
+  .trend-treatment {
+    color: var(--soft);
+    margin: 0 0 8px;
+  }
+  .trend-actions {
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--line);
+  }
+  .trend-actions form,
+  .header-actions form {
+    margin: 0;
+  }
+  .recent-posts {
+    display: grid;
+    gap: 8px;
+    margin-top: 10px;
+  }
+  .recent-post {
+    display: grid;
+    grid-template-columns: 100px 90px 1fr;
+    gap: 10px;
+    align-items: center;
+    color: var(--muted);
+    font-size: 12px;
+    border-top: 1px solid var(--line);
+    padding-top: 8px;
+  }
+  @media (max-width: 900px) {
+    .header-inner {
+      grid-template-columns: 1fr;
+      gap: 10px;
+    }
+    .header-actions {
+      justify-content: flex-start;
+    }
+    .summary-strip {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .clip-card {
+      grid-template-columns: 1fr;
+    }
+    .media-panel video {
+      max-height: none;
+    }
+  }
+  @media (max-width: 560px) {
+    main { padding: 16px 12px 28px; }
+    .header-inner { padding: 12px; }
+    .summary-strip { grid-template-columns: 1fr; }
+    .section-title { align-items: start; flex-direction: column; }
+    .clip-card { padding: 12px; }
+    .hook { font-size: 17px; }
+    .recent-post { grid-template-columns: 1fr; }
   }
 </style>
 </head>
 <body>
-<header>
-  <h1>Clipper Review</h1>
-  <nav>
-    {% for s in ["pending_review", "approved", "rejected", "posted", "all"] %}
-      <a href="?show={{s}}" class="{% if show == s %}active{% endif %}">
-        {{s}}{% if counts.get(s) %} ({{counts[s]}}){% endif %}
-      </a>
-    {% endfor %}
-    <a href="#trend-queue">trends{% if trend_counts.get("new") %} ({{trend_counts["new"]}}){% endif %}</a>
-  </nav>
-</header>
-
-<main>
-<section id="clip-queue">
-  <div class="section-title">
-    <h2>Rendered previews</h2>
-    <div class="meta-line">
-      pending {{counts.get("pending_review", 0)}} · approved {{counts.get("approved", 0)}} · posted {{counts.get("posted", 0)}}
+<header class="app-header">
+  <div class="header-inner">
+    <div class="brand">
+      <h1>Viral Clip Queue</h1>
+      <div>review videos, approve winners, post to connected accounts</div>
     </div>
-  </div>
-
-{% if not clips %}
-  <div class="empty">
-    No clips here.<br>
-    {% if show == "pending_review" %}Run <code>clip run</code> to fill the queue.{% endif %}
-  </div>
-{% endif %}
-
-{% for c in clips %}
-  <div class="card" id="clip-{{c.id}}">
-    <div>
-      {% if c.rendered_path %}
-        <video controls preload="metadata" src="/clip/{{c.id}}/media"></video>
-        {% if c.format == "screenshot_card" %}
-          <div class="preview-note">
-            Generated screenshot-card video. This is not source footage.
-          </div>
-        {% else %}
-          <div class="preview-note">
-            Rendered source-footage clip.
-          </div>
-        {% endif %}
-        <div class="media-actions">
-          <a href="/clip/{{c.id}}/media" target="_blank" rel="noopener">Open full video</a>
-          <a href="/clip/{{c.id}}/media" download>Download MP4</a>
-        </div>
-      {% else %}
-        <div class="empty" style="padding: 40px 0;">no media</div>
-      {% endif %}
-      <div class="meta-line">
-        <span class="score">{{c.virality_score or '–'}}</span>
-        &nbsp;{{c.format}} · {{ "%.1f"|format(c.end_s - c.start_s) }}s
-        &nbsp;<span class="status-pill">{{c.status}}</span>
-      </div>
-      <div class="source-link" style="margin-top:8px;">
-        source: <a href="{{c.source_url}}" target="_blank" rel="noopener">{{c.source_channel or c.video_id}}</a>
-        <div style="opacity:.7;margin-top:2px;">{{c.source_title}}</div>
-      </div>
-    </div>
-
-    <div>
-      <div class="hook">{{c.hook}}</div>
-      <div class="why">{{c.why_it_works}}</div>
-
-      <details>
-        <summary>VO script</summary>
-        <pre>{{c.vo_script}}</pre>
-      </details>
-
-      <form class="platforms" method="post" action="/clip/{{c.id}}/save">
-        {% set yt = c.metadata.get('youtube', {}) %}
-        <div class="platform">
-          <header>
-            <h4>YouTube Shorts</h4>
-            <label class="switch">
-              <input type="checkbox" name="yt_enabled" {% if yt.get('enabled', true) %}checked{% endif %}>
-              post
-            </label>
-          </header>
-          <input type="text" name="yt_title" value="{{yt.get('title','')}}" placeholder="title (≤100 chars)">
-          <textarea name="yt_description" placeholder="description">{{yt.get('description','')}}</textarea>
-          <input type="text" name="yt_tags" value="{{yt.get('tags', [])|join(', ')}}" placeholder="tags, comma separated">
-        </div>
-
-        {% set tt = c.metadata.get('tiktok', {}) %}
-        <div class="platform">
-          <header>
-            <h4>TikTok</h4>
-            <label class="switch">
-              <input type="checkbox" name="tt_enabled" {% if tt.get('enabled', true) %}checked{% endif %}>
-              post
-            </label>
-          </header>
-          <textarea name="tt_caption" placeholder="caption">{{tt.get('caption','')}}</textarea>
-          <input type="text" name="tt_hashtags" value="{{tt.get('hashtags', [])|join(' ')}}" placeholder="#hashtags space separated">
-        </div>
-
-        {% set ig = c.metadata.get('instagram', {}) %}
-        <div class="platform">
-          <header>
-            <h4>Instagram Reels</h4>
-            <label class="switch">
-              <input type="checkbox" name="ig_enabled" {% if ig.get('enabled', true) %}checked{% endif %}>
-              post
-            </label>
-          </header>
-          <textarea name="ig_caption" placeholder="caption">{{ig.get('caption','')}}</textarea>
-          <input type="text" name="ig_hashtags" value="{{ig.get('hashtags', [])|join(' ')}}" placeholder="#caption #hashtags">
-          <input type="text" name="ig_first_comment" value="{{ig.get('first_comment_hashtags', [])|join(' ')}}" placeholder="#first-comment #hashtags">
-        </div>
-
-        <div class="row-actions">
-          <button type="submit">Save edits</button>
-          <button type="submit" formaction="/clip/{{c.id}}/approve" class="primary">✓ Approve</button>
-          <button type="button" class="danger" onclick="rejectClip({{c.id}})">✗ Reject</button>
-          {% if c.reject_reason %}<span class="meta-line">reason: {{c.reject_reason}}</span>{% endif %}
-        </div>
+    <nav>
+      {% set nav_items = [
+        ("pending_review", "review"),
+        ("approved", "approved"),
+        ("post_failed", "post failed"),
+        ("posted", "posted"),
+        ("rejected", "rejected"),
+        ("all", "all")
+      ] %}
+      {% for key, label in nav_items %}
+        <a href="?show={{key}}" class="{% if show == key %}active{% endif %}">
+          {{label}}{% if counts.get(key) %} ({{counts[key]}}){% endif %}
+        </a>
+      {% endfor %}
+      <a href="#trend-queue">today's trends{% if trend_counts.get("new") %} ({{trend_counts["new"]}}){% endif %}</a>
+    </nav>
+    <div class="header-actions">
+      <form method="post" action="/post-approved">
+        <button type="submit" class="primary" {% if not post_ready_count %}disabled title="Add platform credentials first"{% endif %}>
+          Post approved
+        </button>
       </form>
     </div>
   </div>
-{% endfor %}
-</section>
+</header>
 
-<section id="trend-queue">
-  <div class="section-title">
-    <h2>Trend opportunities</h2>
-    <div class="meta-line">
-      new {{trend_counts.get("new", 0)}} · approved {{trend_counts.get("approved", 0)}} · rejected {{trend_counts.get("rejected", 0)}}
-    </div>
-  </div>
-
-  {% if not trends %}
-    <div class="empty" style="padding: 36px 0; margin-bottom: 24px;">
-      No trend opportunities yet.<br>
-      Run <code>clip trends</code> after adding sources to <code>TREND_SOURCES.md</code>.
-    </div>
-  {% else %}
-    <div class="trend-grid">
-    {% for t in trends %}
-      <div class="trend-card {% if t.rights_status == 'blocked' %}blocked{% endif %}" id="trend-{{t.id}}">
-        <div class="trend-head">
-          <h3 class="trend-title">
-            <a href="{{t.url}}" target="_blank" rel="noopener">{{t.title or t.url}}</a>
-          </h3>
-          <span class="score">{{t.trend_score or 0}}</span>
-        </div>
-        <div class="trend-meta">
-          <span class="status-pill">{{t.rights_status}}</span>
-          <span>{{t.recommended_format}}</span>
-          <span>{{t.source_kind}}</span>
-          {% if t.author %}<span>@{{t.author}}</span>{% endif %}
-          {% if t.comments is not none %}<span>{{t.comments}} comments</span>{% endif %}
-        </div>
-        <p class="trend-treatment">{{t.treatment}}</p>
-        <details>
-          <summary>Evidence</summary>
-          <pre>{{t.evidence}}</pre>
-        </details>
-        <div class="trend-actions">
-          {% if t.rights_status != "blocked" %}
-            <form method="post" action="/trend/{{t.id}}/approve">
-              <button type="submit" class="primary">
-                {% if t.rights_status == "allowed" and t.recommended_format == "screenshot_card" %}
-                  Render card video
-                {% elif t.rights_status == "allowed" and t.recommended_format == "commentary_clip" %}
-                  Queue source video
-                {% else %}
-                  Approve treatment
-                {% endif %}
-              </button>
-            </form>
-          {% endif %}
-          <button type="button" class="danger" onclick="rejectTrend({{t.id}})">Reject</button>
-          {% if t.rights_status == "blocked" %}
-            <span class="meta-line">blocked items are trend signals only</span>
-          {% endif %}
-        </div>
-      </div>
-    {% endfor %}
+<main>
+  {% if notice %}
+    <div class="notice warning">
+      {% if notice == "posting_needs_credentials" %}
+        Posting is not connected yet. Add credentials for YouTube, Instagram, or TikTok before posting from the dashboard.
+      {% elif notice == "posted" %}
+        Approved clips were posted to at least one connected platform.
+      {% elif notice == "post_attempt_failed" %}
+        Posting ran, but no platform accepted an upload. Check the recent post log or credentials.
+      {% else %}
+        {{notice}}
+      {% endif %}
     </div>
   {% endif %}
-</section>
+
+  <section class="summary-strip" aria-label="Queue summary">
+    <div class="metric">
+      <span>Ready to review</span>
+      <strong>{{counts.get("pending_review", 0)}}</strong>
+    </div>
+    <div class="metric">
+      <span>Approved to post</span>
+      <strong>{{counts.get("approved", 0)}}</strong>
+    </div>
+    <div class="metric">
+      <span>Posted</span>
+      <strong>{{counts.get("posted", 0)}}</strong>
+    </div>
+    <div class="metric">
+      <span>Trend ideas</span>
+      <strong>{{trend_counts.get("new", 0)}}</strong>
+    </div>
+  </section>
+
+  <section class="posting-panel" aria-label="Posting setup">
+    <div>
+      <strong>Posting setup</strong>
+      <div class="meta-line">The dashboard can post approved clips after each platform is connected.</div>
+    </div>
+    <div class="setup-chips">
+      {% for p in posting_status %}
+        <span class="chip {% if p.ready %}ready{% elif p.enabled %}missing{% else %}off{% endif %}" title="{{p.needs}}">
+          {{p.name}}: {% if p.ready %}ready{% elif p.enabled %}needs keys{% else %}off{% endif %}
+        </span>
+      {% endfor %}
+    </div>
+  </section>
+
+  {% if recent_posts %}
+    <section class="posting-panel" aria-label="Recent post attempts">
+      <div>
+        <strong>Recent post attempts</strong>
+        <div class="recent-posts">
+          {% for p in recent_posts %}
+            <div class="recent-post">
+              <span>{{p.platform}}</span>
+              <span>{{p.status}}</span>
+              <span>{% if p.url %}<a href="{{p.url}}" target="_blank" rel="noopener">{{p.url}}</a>{% else %}{{p.error or p.clip_hook}}{% endif %}</span>
+            </div>
+          {% endfor %}
+        </div>
+      </div>
+    </section>
+  {% endif %}
+
+  <section id="clip-queue">
+    <div class="section-title">
+      <div>
+        <h2>
+          {% if show == "pending_review" %}Ready to review
+          {% elif show == "approved" %}Approved to post
+          {% elif show == "post_failed" %}Post failed
+          {% elif show == "posted" %}Posted clips
+          {% elif show == "rejected" %}Rejected clips
+          {% else %}Clip library{% endif %}
+        </h2>
+        <div class="meta-line">Use the video player or Open full video before approving a clip.</div>
+      </div>
+      <div class="meta-line">
+        pending {{counts.get("pending_review", 0)}} | approved {{counts.get("approved", 0)}} | posted {{counts.get("posted", 0)}}
+      </div>
+    </div>
+
+    {% if not clips %}
+      <div class="empty">
+        No clips in this filter.
+        {% if show == "pending_review" %}
+          Render one from today's trend ideas below, or run <code>clip run</code>.
+        {% endif %}
+      </div>
+    {% endif %}
+
+    {% for c in clips %}
+      <article class="clip-card" id="clip-{{c.id}}">
+        <div class="media-panel">
+          {% if c.rendered_path %}
+            <video controls preload="metadata" src="/clip/{{c.id}}/media"></video>
+            {% if c.format == "screenshot_card" %}
+              <div class="preview-note">
+                Generated screenshot-card video with attribution. This is not source footage.
+              </div>
+            {% else %}
+              <div class="preview-note">
+                Rendered source-footage clip.
+              </div>
+            {% endif %}
+            <div class="media-actions">
+              <a href="/clip/{{c.id}}/media" target="_blank" rel="noopener">Open full video</a>
+              <a href="/clip/{{c.id}}/media" download>Download MP4</a>
+            </div>
+          {% else %}
+            <div class="empty">no media</div>
+          {% endif %}
+
+          <div class="meta-line" style="margin-top:12px;">
+            <span class="score">{{c.virality_score or "-"}}</span>
+            {{c.format}} | {{ "%.1f"|format(c.end_s - c.start_s) }}s
+            <span class="status-pill">{{c.status}}</span>
+          </div>
+          <div class="source-link">
+            source:
+            <a href="{{c.source_url}}" target="_blank" rel="noopener">{{c.source_channel or c.video_id}}</a>
+            <div>{{c.source_title}}</div>
+          </div>
+        </div>
+
+        <div class="clip-copy">
+          <div class="hook">{{c.hook}}</div>
+          <div class="why">{{c.why_it_works}}</div>
+
+          <details>
+            <summary>VO script</summary>
+            <pre>{{c.vo_script}}</pre>
+          </details>
+
+          <form class="platforms" method="post" action="/clip/{{c.id}}/save">
+            {% set yt = c.metadata.get('youtube', {}) %}
+            <div class="platform">
+              <header>
+                <h4>YouTube Shorts</h4>
+                <label class="switch">
+                  <input type="checkbox" name="yt_enabled" {% if yt.get('enabled', true) %}checked{% endif %}>
+                  post
+                </label>
+              </header>
+              <input type="text" name="yt_title" value="{{yt.get('title','')}}" placeholder="title (&lt;=100 chars)">
+              <textarea name="yt_description" placeholder="description">{{yt.get('description','')}}</textarea>
+              <input type="text" name="yt_tags" value="{{yt.get('tags', [])|join(', ')}}" placeholder="tags, comma separated">
+            </div>
+
+            {% set tt = c.metadata.get('tiktok', {}) %}
+            <div class="platform">
+              <header>
+                <h4>TikTok</h4>
+                <label class="switch">
+                  <input type="checkbox" name="tt_enabled" {% if tt.get('enabled', true) %}checked{% endif %}>
+                  post
+                </label>
+              </header>
+              <textarea name="tt_caption" placeholder="caption">{{tt.get('caption','')}}</textarea>
+              <input type="text" name="tt_hashtags" value="{{tt.get('hashtags', [])|join(' ')}}" placeholder="#hashtags space separated">
+            </div>
+
+            {% set ig = c.metadata.get('instagram', {}) %}
+            <div class="platform">
+              <header>
+                <h4>Instagram Reels</h4>
+                <label class="switch">
+                  <input type="checkbox" name="ig_enabled" {% if ig.get('enabled', true) %}checked{% endif %}>
+                  post
+                </label>
+              </header>
+              <textarea name="ig_caption" placeholder="caption">{{ig.get('caption','')}}</textarea>
+              <input type="text" name="ig_hashtags" value="{{ig.get('hashtags', [])|join(' ')}}" placeholder="#caption #hashtags">
+              <input type="text" name="ig_first_comment" value="{{ig.get('first_comment_hashtags', [])|join(' ')}}" placeholder="#first-comment #hashtags">
+            </div>
+
+            <div class="row-actions">
+              <button type="submit">Save edits</button>
+              <button type="submit" formaction="/clip/{{c.id}}/approve" class="primary">Approve</button>
+              <button type="button" class="danger" onclick="rejectClip({{c.id}})">Reject</button>
+              {% if c.reject_reason %}<span class="meta-line">reason: {{c.reject_reason}}</span>{% endif %}
+            </div>
+          </form>
+        </div>
+      </article>
+    {% endfor %}
+  </section>
+
+  <section id="trend-queue">
+    <div class="section-title">
+      <div>
+        <h2>Today's viral posts and clips</h2>
+        <div class="meta-line">Render safe discussion posts as cards, or queue allowed source videos for clipping.</div>
+      </div>
+      <div class="meta-line">
+        new {{trend_counts.get("new", 0)}} | approved {{trend_counts.get("approved", 0)}} | rejected {{trend_counts.get("rejected", 0)}}
+      </div>
+    </div>
+
+    {% if not trends %}
+      <div class="empty">
+        No trend opportunities yet. Run <code>clip trends</code> to refresh today's queue.
+      </div>
+    {% else %}
+      <div class="trend-grid">
+        {% for t in trends %}
+          <article class="trend-card {% if t.rights_status == 'blocked' %}blocked{% endif %}" id="trend-{{t.id}}">
+            <div class="trend-head">
+              <h3 class="trend-title">
+                <a href="{{t.url}}" target="_blank" rel="noopener">{{t.title or t.url}}</a>
+              </h3>
+              <span class="score">{{t.trend_score or 0}}</span>
+            </div>
+            <div class="trend-meta">
+              <span class="status-pill">{{t.rights_status}}</span>
+              <span>{{t.recommended_format}}</span>
+              <span>{{t.source_kind}}</span>
+              {% if t.author %}<span>@{{t.author}}</span>{% endif %}
+              {% if t.comments is not none %}<span>{{t.comments}} comments</span>{% endif %}
+            </div>
+            <p class="trend-treatment">{{t.treatment}}</p>
+            <details>
+              <summary>Evidence</summary>
+              <pre>{{t.evidence}}</pre>
+            </details>
+            <div class="trend-actions">
+              {% if t.rights_status != "blocked" %}
+                <form method="post" action="/trend/{{t.id}}/approve">
+                  <button type="submit" class="primary">
+                    {% if t.rights_status == "allowed" and t.recommended_format == "screenshot_card" %}
+                      Render card video
+                    {% elif t.rights_status == "allowed" and t.recommended_format == "commentary_clip" %}
+                      Queue source video
+                    {% else %}
+                      Approve treatment
+                    {% endif %}
+                  </button>
+                </form>
+              {% endif %}
+              <button type="button" class="danger" onclick="rejectTrend({{t.id}})">Reject</button>
+              {% if t.rights_status == "blocked" %}
+                <span class="meta-line">blocked items stay as trend signals only</span>
+              {% endif %}
+            </div>
+          </article>
+        {% endfor %}
+      </div>
+    {% endif %}
+  </section>
 </main>
 
 <script>
+function submitHiddenForm(action, fields) {
+  const form = document.createElement("form");
+  form.method = "post";
+  form.action = action;
+  Object.entries(fields).forEach(([name, value]) => {
+    const input = document.createElement("input");
+    input.name = name;
+    input.value = value;
+    form.appendChild(input);
+  });
+  document.body.appendChild(form);
+  form.submit();
+}
 function rejectClip(id) {
   const reason = prompt("Reject reason (optional, feeds back to scout):") || "";
-  const f = document.createElement("form");
-  f.method = "post";
-  f.action = `/clip/${id}/reject`;
-  const r = document.createElement("input");
-  r.name = "reason"; r.value = reason;
-  f.appendChild(r);
-  document.body.appendChild(f);
-  f.submit();
+  submitHiddenForm(`/clip/${id}/reject`, {reason});
 }
 function rejectTrend(id) {
   const reason = prompt("Reject reason (optional):") || "";
-  const f = document.createElement("form");
-  f.method = "post";
-  f.action = `/trend/${id}/reject`;
-  const r = document.createElement("input");
-  r.name = "reason"; r.value = reason;
-  f.appendChild(r);
-  document.body.appendChild(f);
-  f.submit();
+  submitHiddenForm(`/trend/${id}/reject`, {reason});
 }
 </script>
 </body>
