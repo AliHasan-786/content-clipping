@@ -105,7 +105,7 @@ clipper/
   - `trend_score`, `rights_status`, `recommended_format`, `treatment`, `evidence_json`.
 - Recommended formats:
   - `screenshot_card`: for X/Twitter-style posts, Reddit posts/comments, or news/discourse snippets. Must include visible attribution, background music, and a value-add caption/VO/question.
-  - `commentary_clip`: only for official/licensed/public-domain/owned clips, with transformative VO.
+  - `commentary_clip`: only for official/licensed/public-domain/owned clips, with transformative VO. These are queued as source media and run through ingest/scout/cut before a full source-footage video appears in review.
   - `rights_review`: owner must confirm source rights or replace with official/licensed source.
   - `do_not_repost`: blocked; use only as a trend signal.
 
@@ -139,6 +139,7 @@ clipper/
   - optional VO that adds context/stakes,
   - comment-bait prompt that invites disagreement without fabricating facts.
   - approved screenshot-card trends become normal `clips` rows with rendered MP4s and platform metadata, so they enter the same review/post path as source clips.
+- For actual source-footage trend clips, add or approve an official/licensed/owned/public-domain media URL. The dashboard queues it as a source candidate; `clip run` downloads, transcribes, scouts, cuts, and then shows the full rendered video in review.
 
 ### Stage 5 — PACKAGE (`pipeline/package.py`)
 - Feed clip context to Claude using `prompts/package.md`. Returns per-platform metadata:

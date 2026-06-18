@@ -121,6 +121,10 @@
   button:hover   { filter: brightness(1.1); }
   .source-link { color: var(--muted); font-size: 12px; }
   .source-link a { color: var(--accent); }
+  .preview-note {
+    margin-top: 8px; color: var(--muted); font-size: 12px;
+    border-left: 3px solid var(--accent); padding-left: 8px;
+  }
   .status-pill {
     display: inline-block; padding: 2px 8px; border-radius: 999px;
     font-size: 11px; background: #1f2937; color: var(--muted);
@@ -162,6 +166,15 @@
     <div>
       {% if c.rendered_path %}
         <video controls preload="metadata" src="/clip/{{c.id}}/media"></video>
+        {% if c.format == "screenshot_card" %}
+          <div class="preview-note">
+            Generated screenshot-card video. This is not source footage.
+          </div>
+        {% else %}
+          <div class="preview-note">
+            Rendered source-footage clip.
+          </div>
+        {% endif %}
       {% else %}
         <div class="empty" style="padding: 40px 0;">no media</div>
       {% endif %}
@@ -279,7 +292,9 @@
             <form method="post" action="/trend/{{t.id}}/approve">
               <button type="submit" class="primary">
                 {% if t.rights_status == "allowed" and t.recommended_format == "screenshot_card" %}
-                  Render preview
+                  Render card video
+                {% elif t.rights_status == "allowed" and t.recommended_format == "commentary_clip" %}
+                  Queue source video
                 {% else %}
                   Approve treatment
                 {% endif %}

@@ -35,6 +35,40 @@ def _load_config() -> dict:
         return yaml.safe_load(f)
 
 
+def _queue_trend_source_candidate(trend_id: int) -> None:
+    with db.connect() as conn:
+        row = conn.execute(
+            "SELECT * FROM trend_opportunities WHERE id = ?",
+            (trend_id,),
+        ).fetchone()
+        if not row:
+            raise HTTPException(404, "trend opportunity not found")
+        if row["rights_status"] != "allowed":
+            raise HTTPException(400, "source video trends require allowed rights status")
+        if row["recommended_format"] != "commentary_clip":
+            raise HTTPException(400, "only commentary_clip trends can be queued as source footage")
+
+        video_id = f"trendsrc_{trend_id:06d}"
+        db.upsert_candidate(conn, {
+            "source_type": "trend_source",
+            "source_id": row["source_id"],
+            "video_id": video_id,
+            "url": row["url"],
+            "title": row["title"],
+            "channel": row["author"] or row["source_kind"],
+            "published_at": row["published_at"],
+            "duration_s": None,
+            "views": row["score"],
+            "velocity": row["velocity"],
+            "status": "new",
+            "notes": f"queued from trend opportunity #{trend_id}",
+        })
+        conn.execute(
+            "UPDATE trend_opportunities SET status = 'queued_source', notes = ? WHERE id = ?",
+            (f"queued source candidate {video_id}; run clip run to ingest/scout/cut", trend_id),
+        )
+
+
 @app.get("/", response_class=HTMLResponse)
 def index(request: Request, show: str = "pending_review"):
     with db.connect() as conn:
@@ -154,6 +188,7 @@ async def reject(clip_id: int, request: Request):
 @app.post("/trend/{trend_id}/approve")
 def approve_trend(trend_id: int):
     should_render = False
+    should_queue_source = False
     with db.connect() as conn:
         row = conn.execute(
             "SELECT rights_status, recommended_format FROM trend_opportunities WHERE id = ?",
@@ -165,10 +200,14 @@ def approve_trend(trend_id: int):
             raise HTTPException(400, "blocked trend opportunities cannot be approved")
         conn.execute("UPDATE trend_opportunities SET status = 'approved' WHERE id = ?", (trend_id,))
         should_render = row["rights_status"] == "allowed" and row["recommended_format"] == "screenshot_card"
+        should_queue_source = row["rights_status"] == "allowed" and row["recommended_format"] == "commentary_clip"
     if should_render:
         from pipeline import cut
         cut.render_approved_trends(_load_config(), trend_id=trend_id)
         return RedirectResponse(url="/?show=pending_review", status_code=303)
+    if should_queue_source:
+        _queue_trend_source_candidate(trend_id)
+        return RedirectResponse(url="/#trend-queue", status_code=303)
     return RedirectResponse(url="/#trend-queue", status_code=303)
 
 
