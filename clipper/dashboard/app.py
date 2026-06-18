@@ -77,6 +77,12 @@ def _ai_ready(cfg: dict) -> bool:
     return bool(cfg.get("ai", {}).get("enabled", True) and os.environ.get("ANTHROPIC_API_KEY"))
 
 
+def _integration_status(cfg: dict) -> list[dict]:
+    from pipeline import integrations
+
+    return integrations.status(cfg)
+
+
 def _queue_trend_source_candidate(trend_id: int) -> None:
     with db.connect() as conn:
         row = conn.execute(
@@ -171,6 +177,7 @@ def index(request: Request, show: str = "pending_review", notice: Optional[str] 
             "trend_counts": trend_counts,
             "posting_status": posting_status,
             "post_ready_count": sum(1 for p in posting_status if p["ready"]),
+            "integration_status": _integration_status(cfg),
             "recent_posts": [dict(r) for r in recent_posts],
             "notice": notice,
             "ai_ready": _ai_ready(cfg),

@@ -102,6 +102,38 @@ Next useful improvement:
 - Add silence removal and punch-in zoom effects in `cut.py`.
 - Add optional royalty-free B-roll/GIF overlays for screenshot cards and explainers.
 
+### Editor MCPs and API Renderers
+
+Tools studied:
+- Palmier Pro: https://www.palmier.io/ and https://github.com/palmier-io/palmier-pro
+- Descript API/MCP: https://help.descript.com/hc/en-us/articles/43370311322509-Descript-API and https://help.descript.com/hc/en-us/articles/46056322186509-Descript-MCP-overview
+- Premiere Pro MCP: https://github.com/leancoderkavy/premiere-pro-mcp
+- DaVinci Resolve MCP: https://github.com/samuelgursky/davinci-resolve-mcp
+- Shotstack: https://shotstack.io/product/video-editing-api/
+- Creatomate: https://creatomate.com/
+- JSON2Video: https://json2video.com/
+- Remotion: https://www.remotion.dev/docs/api
+- Runway API: https://docs.dev.runwayml.com/
+
+Recommended integration posture:
+- Keep `ffmpeg` as the default renderer. It is local, cheap, deterministic, and already gets clips into the dashboard.
+- Use Palmier Pro as a manual/agentic timeline-polish lane when the owner wants to refine a specific approved clip with generated b-roll, sound, or detailed timeline edits. Palmier exposes a local MCP server when the app is open, which makes it a good optional companion rather than a mandatory pipeline dependency.
+- Use Descript as the best near-term hosted AI editor candidate. Its API/MCP can import media, run Underlord edits, add captions, remove filler words, apply Studio Sound, create highlight reels, and publish web links. Its current limitation is that local file export may still require a web-link/signed-url workflow or manual export.
+- Treat Premiere Pro and DaVinci Resolve MCPs as advanced power-user options. They are valuable if the owner already edits in those apps, but they add desktop app complexity that is not needed for daily faceless short clips.
+- Treat Shotstack, Creatomate, and JSON2Video as cloud renderer fallbacks for template-driven formats or high-volume rendering. They are less useful than local ffmpeg until we need bulk template renders or server-side scaling.
+- Treat Runway as a generative b-roll/video-edit provider, not as the core editor. Use it when source footage is unavailable, rights are risky, or a card/explainer needs generated filler visuals.
+
+Repo status:
+- Added optional integration readiness tracking in `clipper/pipeline/integrations.py`.
+- Added `clip integrations` to print editor/render/publisher readiness.
+- Dashboard now shows optional AI editing integrations separately from platform posting credentials.
+
+Next useful improvement:
+- Add a `clip polish --provider descript|palmier --clip-id N` command once a real provider is connected.
+- Add an `external_render_provider` field on clips so the dashboard can show whether a video came from local ffmpeg, Descript, Palmier, or a cloud renderer.
+- For Palmier, export an edit decision package: rendered MP4, original source, VO script, captions, and suggested b-roll prompts.
+- For Descript, build an import/edit/publish adapter after a token or MCP connector is available.
+
 ### Trend Discovery
 
 Tools/data studied:

@@ -172,6 +172,15 @@ def schedule_cmd(cfg: dict):
     schedule.apply_schedule(cfg)
 
 
+@cli.command(name="integrations")
+@click.pass_obj
+def integrations_cmd(cfg: dict):
+    """Show optional AI editor/render/publisher integration readiness."""
+    from pipeline import integrations
+    ready = integrations.print_status(cfg)
+    click.echo(f"\nready integrations: {ready}")
+
+
 @cli.command(name="purge")
 @click.pass_obj
 def purge_cmd(cfg: dict):

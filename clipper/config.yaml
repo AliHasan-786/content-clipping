@@ -61,6 +61,26 @@ ai:
   model_fast: "claude-sonnet-4-6"
   model_deep: "claude-opus-4-7"
 
+integrations:
+  # Optional external AI/video tools. Keep the local ffmpeg renderer as the
+  # default; enable one of these only when it saves time or improves output.
+  providers:
+    palmier_pro:
+      enabled: false
+      mcp_url: "http://127.0.0.1:19789/mcp"
+    descript:
+      enabled: false
+    shotstack:
+      enabled: false
+    creatomate:
+      enabled: false
+    json2video:
+      enabled: false
+    runway:
+      enabled: false
+    ayrshare:
+      enabled: false
+
 ingest:
   # How many of the top-ranked candidates to actually download + transcribe per run.
   max_daily_ingest: 5

@@ -550,6 +550,22 @@
     </div>
   </section>
 
+  <section class="posting-panel" aria-label="AI editing integrations">
+    <div>
+      <strong>AI editing integrations</strong>
+      <div class="meta-line">Optional polish/render/publish tools; local ffmpeg remains the default renderer.</div>
+    </div>
+    <div class="setup-chips">
+      {% for tool in integration_status %}
+        <span class="chip {% if tool.ready %}ready{% elif tool.enabled %}missing{% else %}off{% endif %}"
+              title="{{tool.role}} | {{tool.needs}}">
+          {{tool.name}}:
+          {% if tool.ready %}ready{% elif tool.enabled %}needs setup{% else %}off{% endif %}
+        </span>
+      {% endfor %}
+    </div>
+  </section>
+
   {% if recent_posts %}
     <section class="posting-panel" aria-label="Recent post attempts">
       <div>

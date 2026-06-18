@@ -47,6 +47,7 @@ Owner runs it daily. Daily human effort target: **~5 minutes** (approve queue + 
 - **Queue/state:** SQLite (`clips.db`). Dead simple, no server.
 - **Dashboard:** FastAPI + a single HTML page (HTMX or vanilla). Runs at `localhost:8765`.
 - **Scheduler:** `cron` (Mac/Linux) or just run `clip run` manually.
+- **Optional external AI/video tools:** Palmier Pro MCP or Descript API/MCP for timeline polish; Shotstack/Creatomate/JSON2Video for cloud/template renders; Runway for generated b-roll; Ayrshare for unified posting fallback. These are optional provider slots, not core dependencies.
 
 **Repo layout:**
 ```
@@ -151,6 +152,11 @@ clipper/
   - comment-bait prompt that invites disagreement without fabricating facts.
   - approved screenshot-card trends become normal `clips` rows with rendered MP4s and platform metadata, so they enter the same review/post path as source clips.
 - For actual source-footage trend clips, add or approve an official/licensed/owned/public-domain media URL. The dashboard queues it as a source candidate; `clip run` downloads, transcribes, scouts, cuts, and then shows the full rendered video in review.
+- Optional external polish is allowed after local render:
+  - Palmier Pro MCP: send source MP4, rendered MP4, VO script, captions, and b-roll prompts for timeline-level polish.
+  - Descript API/MCP: import rendered/source media for Underlord edits such as captions, Studio Sound, filler removal, and highlight variations.
+  - Cloud render APIs: use only for template/card scaling when local ffmpeg becomes a bottleneck.
+  - The dashboard must always show the final MP4, regardless of which renderer produced it.
 
 ### Stage 5 — PACKAGE (`pipeline/package.py`)
 - Feed clip context to Claude using `prompts/package.md`. Returns per-platform metadata:
@@ -227,6 +233,7 @@ clip run        # trend discovery + stages 1–5. ~10–20 min unattended.
 clip trends     # run only the trendjacking discovery lane
 clip review     # opens http://127.0.0.1:8765. View full MP4s, approve/reject, optionally post.
 clip schedule   # suggest posting order for approved clips
+clip integrations # show optional AI editor/render/publisher readiness
 clip post       # CLI fallback for approved clips. YT+IG auto; TikTok → tap publish on phone.
 ```
 Or wire `clip run` to a morning cron job so the queue is ready when you wake up; you just review and post from the dashboard.
