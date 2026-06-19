@@ -88,6 +88,16 @@ def status(cfg: dict):
         )
 
 
+@cli.command(name="doctor")
+@click.pass_context
+def doctor_cmd(ctx: click.Context):
+    """Check whether the machine is ready for a low-effort daily handoff."""
+    from pipeline import doctor
+
+    ready = doctor.print_report(ctx.obj)
+    ctx.exit(0 if ready else 1)
+
+
 @cli.command()
 @click.option("--skip-trends", is_flag=True, help="Skip trendjacking discovery lane.")
 @click.option("--skip-source",  is_flag=True, help="Skip stage 1 (use existing candidates).")

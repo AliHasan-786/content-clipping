@@ -240,6 +240,7 @@ Put all keys in `.env`. Never commit it.
 ## 5. Daily operation (the whole owner workflow)
 
 ```bash
+clip doctor     # handoff readiness check: sources, local tools, credentials, queue
 clip run        # trend discovery + stages 1–5. ~10–20 min unattended.
 clip auth status # verify API/posting credentials without printing secrets
 clip trends     # run only the trendjacking discovery lane
