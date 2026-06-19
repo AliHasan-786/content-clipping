@@ -196,12 +196,16 @@
   }
   .media-panel video {
     display: block;
-    width: 100%;
+    width: auto;
+    max-width: min(100%, 420px);
+    height: min(58vh, 560px);
     aspect-ratio: 9 / 16;
-    max-height: 68vh;
     background: #000;
     border-radius: 6px;
     object-fit: contain;
+  }
+  .media-panel {
+    min-width: 0;
   }
   .preview-note {
     margin-top: 10px;
@@ -424,6 +428,40 @@
     border-top: 1px solid var(--line);
     padding-top: 8px;
   }
+  .source-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 10px;
+    width: 100%;
+  }
+  .source-card {
+    min-width: 0;
+    border: 1px solid var(--line);
+    background: #0f1419;
+    border-radius: 7px;
+    padding: 10px;
+  }
+  .source-card strong {
+    display: block;
+    font-size: 13px;
+    line-height: 1.25;
+    margin: 6px 0;
+  }
+  .source-card a {
+    color: var(--accent);
+    text-decoration: none;
+  }
+  .source-card a:hover,
+  .brief-list a:hover {
+    text-decoration: underline;
+  }
+  .source-card .media-actions {
+    margin-top: 8px;
+  }
+  .brief-list a {
+    color: var(--accent);
+    text-decoration: none;
+  }
   .brief-panel {
     background: var(--panel);
     border: 1px solid var(--line);
@@ -480,6 +518,9 @@
     .summary-strip {
       grid-template-columns: repeat(2, minmax(0, 1fr));
     }
+    .source-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
     .clip-card {
       grid-template-columns: 1fr;
     }
@@ -487,13 +528,14 @@
       grid-template-columns: 1fr;
     }
     .media-panel video {
-      max-height: none;
+      height: min(68vh, 620px);
     }
   }
   @media (max-width: 560px) {
     main { padding: 16px 12px 28px; }
     .header-inner { padding: 12px; }
     .summary-strip { grid-template-columns: 1fr; }
+    .source-grid { grid-template-columns: 1fr; }
     .section-title { align-items: start; flex-direction: column; }
     .clip-card { padding: 12px; }
     .hook { font-size: 17px; }
@@ -635,6 +677,32 @@
     </section>
   {% endif %}
 
+  <section class="posting-panel" aria-label="Source queue">
+    <div>
+      <strong>Today's sources and trend signals</strong>
+      <div class="meta-line">Open these before approving. Cards are rendered previews; these links are the underlying source/signal.</div>
+    </div>
+    <div class="source-grid">
+      {% for t in trends %}
+        <div class="source-card">
+          <div class="trend-meta" style="margin:0;">
+            <span class="status-pill">{{t.rights_status}}</span>
+            <span>{{t.source_kind}}</span>
+            <span class="score">{{t.trend_score or 0}}</span>
+          </div>
+          <strong>{{t.title or t.url}}</strong>
+          <div class="meta-line">{{t.recommended_format}}</div>
+          <div class="media-actions">
+            <a href="{{t.url}}" target="_blank" rel="noopener">Open source</a>
+            <a href="#trend-{{t.id}}">Review</a>
+          </div>
+        </div>
+      {% else %}
+        <div class="empty">No source signals yet. Run <code>clip trends</code>.</div>
+      {% endfor %}
+    </div>
+  </section>
+
   <section id="clip-queue">
     <div class="section-title">
       <div>
@@ -678,6 +746,9 @@
             {% endif %}
             <div class="media-actions">
               <a href="/clip/{{c.id}}/media" target="_blank" rel="noopener">Open full video</a>
+              {% if c.source_url %}
+                <a href="{{c.source_url}}" target="_blank" rel="noopener">Open source</a>
+              {% endif %}
               <a href="/clip/{{c.id}}/media" download>Download MP4</a>
             </div>
           {% else %}
