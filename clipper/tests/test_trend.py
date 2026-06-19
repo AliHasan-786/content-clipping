@@ -141,6 +141,20 @@ class TrendPipelineTests(unittest.TestCase):
         self.assertEqual(opp.rights_status, "review_required")
         self.assertEqual(opp.recommended_format, "rights_review")
 
+    def test_reddit_threshold_rejects_low_signal_posts(self):
+        cfg = {"trend": {"reddit_min_upvotes": 2500, "reddit_min_comments": 150, "reddit_min_velocity": 350}}
+
+        self.assertFalse(
+            trend._passes_reddit_threshold(400, 50, trend._utc_now_iso(), cfg)
+        )
+
+    def test_reddit_threshold_accepts_real_engagement(self):
+        cfg = {"trend": {"reddit_min_upvotes": 2500, "reddit_min_comments": 150, "reddit_min_velocity": 350}}
+
+        self.assertTrue(
+            trend._passes_reddit_threshold(8000, 500, trend._utc_now_iso(), cfg)
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

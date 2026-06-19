@@ -169,6 +169,7 @@ Repo status:
 - LLM triage now adds hooks, source-search queries, comment angles, and safety flags.
 - `clip brief` and the dashboard daily trend brief now group open opportunities into render-now, source-review, blocked-signal, source-search, and next-action lanes.
 - `clip import-trends path/to/export.csv --source tool-name` imports CSV/TSV exports from external trend tools into the same rights-gated review queue.
+- Reddit discovery now prefers real JSON/API engagement, supports OAuth app credentials, disables fake RSS engagement by default, and uses stricter minimum engagement thresholds.
 
 Next useful improvement:
 - Add direct API/scraper adapters only for exports that prove useful repeatedly; keep CSV import as the default bridge.

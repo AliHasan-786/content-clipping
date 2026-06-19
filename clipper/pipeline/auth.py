@@ -155,6 +155,19 @@ def set_tiktok_credentials(
     update_env({k: v for k, v in values.items() if v})
 
 
+def set_reddit_credentials(
+    client_id: str | None = None,
+    client_secret: str | None = None,
+    user_agent: str | None = None,
+) -> None:
+    values = {
+        "REDDIT_CLIENT_ID": client_id,
+        "REDDIT_CLIENT_SECRET": client_secret,
+        "REDDIT_USER_AGENT": user_agent,
+    }
+    update_env({k: v for k, v in values.items() if v})
+
+
 def set_anthropic_key(api_key: str) -> None:
     if not api_key.startswith("sk-ant-"):
         raise ValueError("Anthropic key should start with sk-ant-")
@@ -224,6 +237,19 @@ def status(cfg: dict | None = None) -> list[dict[str, Any]]:
             "ready": _truthy(os.environ.get("ANTHROPIC_API_KEY")),
             "needs": "ANTHROPIC_API_KEY.",
             "details": {"api_key": bool(os.environ.get("ANTHROPIC_API_KEY"))},
+        },
+        {
+            "key": "reddit",
+            "name": "Reddit",
+            "enabled": bool((cfg or {}).get("trend", {}).get("enabled", True)),
+            "configured": all(_truthy(os.environ.get(k)) for k in ["REDDIT_CLIENT_ID", "REDDIT_CLIENT_SECRET"]),
+            "ready": all(_truthy(os.environ.get(k)) for k in ["REDDIT_CLIENT_ID", "REDDIT_CLIENT_SECRET"]),
+            "needs": "REDDIT_CLIENT_ID and REDDIT_CLIENT_SECRET for reliable trend discovery.",
+            "details": {
+                "client_id": bool(os.environ.get("REDDIT_CLIENT_ID")),
+                "client_secret": bool(os.environ.get("REDDIT_CLIENT_SECRET")),
+                "user_agent": bool(os.environ.get("REDDIT_USER_AGENT")),
+            },
         },
     ]
     for platform in platforms:

@@ -11,6 +11,7 @@ from __future__ import annotations
 import hashlib
 import json
 import math
+import os
 import re
 import sys
 import xml.etree.ElementTree as ET
@@ -196,6 +197,22 @@ def _score(score: int | None, comments: int | None, published_at: str) -> tuple[
     return velocity, trend_score
 
 
+def _passes_reddit_threshold(score: int, comments: int, published_at: str, cfg: dict) -> bool:
+    trend_cfg = cfg.get("trend", {})
+    min_upvotes = int(trend_cfg.get("reddit_min_upvotes", 2500))
+    min_comments = int(trend_cfg.get("reddit_min_comments", 150))
+    min_velocity = float(trend_cfg.get("reddit_min_velocity", 350.0))
+    velocity, _ = _score(score, comments, published_at)
+    return (
+        (score >= min_upvotes and comments >= min_comments)
+        or (
+            score >= max(1, min_upvotes // 2)
+            and comments >= max(1, min_comments // 2)
+            and velocity >= min_velocity
+        )
+    )
+
+
 def _treatment(kind: str, title: str, recommended_format: str, rights_status: str) -> str:
     if recommended_format == "screenshot_card":
         return (
@@ -262,11 +279,17 @@ def _poll_reddit_json(src: TrendSource, cfg: dict) -> list[TrendOpportunity]:
     subreddit = _normalize_reddit_name(src.identifier)
     sort = "hot" if src.type == "reddit_hot" else "top"
     limit = int(cfg["trend"].get("reddit_limit_per_source", 25))
-    url = f"https://www.reddit.com/r/{subreddit}/{sort}.json"
+    token = _reddit_token()
+    if token:
+        url = f"https://oauth.reddit.com/r/{subreddit}/{sort}"
+        headers = {"User-Agent": USER_AGENT, "Authorization": f"Bearer {token}"}
+    else:
+        url = f"https://www.reddit.com/r/{subreddit}/{sort}.json"
+        headers = {"User-Agent": USER_AGENT}
     params = {"limit": limit}
     if sort == "top":
         params["t"] = "day"
-    resp = requests.get(url, params=params, headers={"User-Agent": USER_AGENT}, timeout=30)
+    resp = requests.get(url, params=params, headers=headers, timeout=30)
     resp.raise_for_status()
     data = resp.json()
 
@@ -282,13 +305,17 @@ def _poll_reddit_json(src: TrendSource, cfg: dict) -> list[TrendOpportunity]:
         title = post.get("title") or ""
         score = int(post.get("score") or 0)
         comments = int(post.get("num_comments") or 0)
+        if not _passes_reddit_threshold(score, comments, created, cfg):
+            continue
         evidence = {
             "subreddit": subreddit,
             "sort": sort,
             "score": score,
             "comments": comments,
+            "upvote_ratio": post.get("upvote_ratio"),
             "is_self": bool(post.get("is_self")),
             "linked_url": post.get("url"),
+            "score_source": "reddit_json",
         }
         local_src = TrendSource(
             type=src.type,
@@ -297,6 +324,27 @@ def _poll_reddit_json(src: TrendSource, cfg: dict) -> list[TrendOpportunity]:
         )
         out.append(_make_opp(local_src, permalink, title, post.get("author"), created, score, comments, evidence, cfg))
     return out
+
+
+def _reddit_token() -> str | None:
+    client_id = os.environ.get("REDDIT_CLIENT_ID")
+    client_secret = os.environ.get("REDDIT_CLIENT_SECRET")
+    if not client_id or not client_secret:
+        return None
+    try:
+        import requests
+        from requests.auth import HTTPBasicAuth
+    except ImportError:
+        return None
+    resp = requests.post(
+        "https://www.reddit.com/api/v1/access_token",
+        auth=HTTPBasicAuth(client_id, client_secret),
+        data={"grant_type": "client_credentials"},
+        headers={"User-Agent": os.environ.get("REDDIT_USER_AGENT") or USER_AGENT},
+        timeout=30,
+    )
+    resp.raise_for_status()
+    return resp.json().get("access_token")
 
 
 def _poll_reddit_rss(src: TrendSource, cfg: dict, json_error: str | None = None) -> list[TrendOpportunity]:
@@ -337,16 +385,13 @@ def _poll_reddit_rss(src: TrendSource, cfg: dict, json_error: str | None = None)
         if _hours_since(updated) > int(cfg["trend"]["lookback_hours"]):
             continue
         author = entry.findtext("atom:author/atom:name", default="", namespaces=ns) or None
-        # Reddit RSS omits score/comment counts. Feed rank is still a trend
-        # signal, so synthesize conservative engagement values for scoring.
-        synthetic_score = max(900, 12000 - idx * 800)
-        synthetic_comments = max(35, 650 - idx * 40)
         evidence = {
             "subreddit": subreddit,
             "sort": sort,
             "rss_rank": idx + 1,
-            "score_source": "synthetic_from_reddit_rss_rank",
+            "score_source": "rss_rank_only_no_engagement_counts",
             "json_error": json_error,
+            "low_confidence": True,
         }
         local_src = TrendSource(
             type=src.type,
@@ -360,8 +405,8 @@ def _poll_reddit_rss(src: TrendSource, cfg: dict, json_error: str | None = None)
                 title,
                 author,
                 updated,
-                synthetic_score,
-                synthetic_comments,
+                None,
+                None,
                 evidence,
                 cfg,
             )
@@ -371,15 +416,17 @@ def _poll_reddit_rss(src: TrendSource, cfg: dict, json_error: str | None = None)
 
 def _poll_reddit(src: TrendSource, cfg: dict) -> list[TrendOpportunity]:
     try:
-        rows = _poll_reddit_rss(src, cfg)
+        rows = _poll_reddit_json(src, cfg)
         if rows:
             return rows
-    except Exception as rss_error:
+    except Exception as json_error:
+        if not cfg.get("trend", {}).get("allow_reddit_rss_fallback", False):
+            raise
         try:
-            return _poll_reddit_json(src, cfg)
-        except Exception as json_error:
-            raise RuntimeError(f"rss failed: {rss_error}; json failed: {json_error}")
-    return _poll_reddit_json(src, cfg)
+            return _poll_reddit_rss(src, cfg, json_error=str(json_error))
+        except Exception as rss_error:
+            raise RuntimeError(f"json failed: {json_error}; rss failed: {rss_error}")
+    return []
 
 
 def _poll_rss(src: TrendSource, cfg: dict) -> list[TrendOpportunity]:
@@ -457,7 +504,8 @@ def _apply_ai_triage(opp: TrendOpportunity, parsed: dict, cfg: dict) -> None:
     if parsed.get("treatment"):
         opp.treatment = str(parsed["treatment"])[:1000]
     if isinstance(parsed.get("virality_score"), int):
-        opp.trend_score = max(0, min(100, max(opp.trend_score, int(parsed["virality_score"]))))
+        ai_score = max(0, min(100, int(parsed["virality_score"])))
+        opp.trend_score = max(0, min(100, int(opp.trend_score * 0.75 + ai_score * 0.25)))
 
     ai_payload = {
         "hook": parsed.get("hook"),
@@ -510,6 +558,7 @@ def recent(limit: int = 10) -> list[dict]:
     with db.connect() as conn:
         rows = conn.execute(
             "SELECT * FROM trend_opportunities "
+            "WHERE status IN ('new', 'blocked') "
             "ORDER BY discovered_at DESC, trend_score DESC LIMIT ?",
             (limit,),
         ).fetchall()

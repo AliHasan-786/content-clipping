@@ -55,6 +55,12 @@ class CutTrendCardTests(unittest.TestCase):
         self.assertLessEqual(len(metadata["youtube"]["title"]), 100)
         self.assertIn("#viral", metadata["tiktok"]["hashtags"])
 
+    def test_trend_hook_uses_title_not_generic_comment_section(self):
+        hook = cut._trend_hook(ROW)
+
+        self.assertIn("Streamer accidentally", hook)
+        self.assertNotEqual(hook, "The comment section is already split on this")
+
     def test_render_trend_card_image(self):
         with tempfile.TemporaryDirectory() as tmp:
             out = Path(tmp) / "card.png"

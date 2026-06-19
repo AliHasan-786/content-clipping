@@ -242,6 +242,26 @@ def auth_tiktok_cmd(
     auth.print_status(ctx.find_root().obj)
 
 
+@auth_cmd.command(name="reddit")
+@click.option("--client-id", help="Reddit app client ID.")
+@click.option("--client-secret", help="Reddit app client secret.")
+@click.option("--user-agent", help="Reddit API user agent.")
+@click.pass_context
+def auth_reddit_cmd(
+    ctx: click.Context,
+    client_id: str | None,
+    client_secret: str | None,
+    user_agent: str | None,
+):
+    """Save Reddit API credentials for reliable trend discovery."""
+    from pipeline import auth
+
+    if any([client_id, client_secret, user_agent]):
+        auth.set_reddit_credentials(client_id, client_secret, user_agent)
+        click.echo("Reddit credentials updated in clipper/.env")
+    auth.print_status(ctx.find_root().obj)
+
+
 @auth_cmd.command(name="anthropic")
 @click.option("--api-key", prompt=True, hide_input=True, help="Anthropic API key.")
 def auth_anthropic_cmd(api_key: str):

@@ -14,9 +14,13 @@ trend:
   # Trend opportunities are ideas/safe-source leads, not automatic reposts.
   # They still require review before rendering/posting.
   lookback_hours: 24
-  max_opportunities: 25
-  reddit_limit_per_source: 5
-  min_trend_score: 45
+  max_opportunities: 30
+  reddit_limit_per_source: 15
+  min_trend_score: 72
+  reddit_min_upvotes: 2500
+  reddit_min_comments: 150
+  reddit_min_velocity: 350
+  allow_reddit_rss_fallback: false
   # Safe-by-default formats. These can become screenshot/commentary cards.
   allowed_source_kinds:
     - official_clip

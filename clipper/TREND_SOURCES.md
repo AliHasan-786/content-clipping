@@ -30,9 +30,15 @@
 #   clipping_account_repost  Viral repost from another clipping account; find original/official source first
 #   independent_creator_repost  Independent TikTok/Reels/etc.; blocked by default
 #
-# Active broad viral/funny lane sources. These queue discussion/screenshot-card
+# Active broad viral/funny lane sources. Start from Reddit-wide trend feeds,
+# then sample broad culture categories. These queue discussion/screenshot-card
 # opportunities only; linked creator videos still need separate rights review.
-reddit_top: r/LivestreamFail | kind=reddit_discussion
+reddit_hot: r/popular | kind=reddit_discussion
+reddit_top: r/popular | kind=reddit_discussion
+reddit_hot: r/all | kind=reddit_discussion
+reddit_top: r/all | kind=reddit_discussion
+reddit_top: r/funny | kind=reddit_discussion
+reddit_top: r/Unexpected | kind=reddit_discussion
 reddit_top: r/gaming | kind=reddit_discussion
 reddit_top: r/sports | kind=reddit_discussion
 reddit_top: r/popculturechat | kind=reddit_discussion

@@ -141,12 +141,27 @@ def _trend_hook(row: dict) -> str:
     ai_hook = _trend_ai(row).get("hook")
     if ai_hook:
         return str(ai_hook)[:140]
+    title = (row.get("title") or "").strip()
+    if title:
+        return title[:120].rstrip()
+    return "This is picking up fast"
+
+
+def _trend_question(row: dict) -> str:
+    triage = _trend_ai(row)
+    custom = (
+        (triage.get("comment_mining") or {}).get("best_comment_prompt")
+        or triage.get("conversation_prompt")
+    )
+    if custom:
+        return str(custom)[:220]
+    title = (row.get("title") or "this").strip().rstrip("?")
     kind = row.get("source_kind") or "trend"
     if kind == "reddit_discussion":
-        return "The comment section is already split on this"
+        return f"Question: is Reddit right about {title[:70]}, or is this overhyped?"
     if kind == "social_text":
-        return "This post is turning into the debate of the day"
-    return "The internet is already arguing about this"
+        return f"Question: is this a real take, or engagement bait?"
+    return f"Question: would you post this, or is it not viral enough?"
 
 
 def _trend_metadata(row: dict, cfg: dict) -> dict:
@@ -155,11 +170,7 @@ def _trend_metadata(row: dict, cfg: dict) -> dict:
     source = _trend_source_label(row)
     triage = _trend_ai(row)
     safety = triage.get("safety_review") or {}
-    conversation = (
-        (triage.get("comment_mining") or {}).get("best_comment_prompt")
-        or triage.get("conversation_prompt")
-        or _trend_hook(row)
-    )
+    conversation = _trend_question(row)
     hashtags = ["#viral", "#funny", "#internetculture", "#streamers", "#gaming"]
     meta = {
         "youtube": {
@@ -277,15 +288,7 @@ def _render_trend_card_image(cfg: dict, row: dict, out_png: Path) -> None:
     draw.line((card_x0 + 56, y, card_x1 - 56, y), fill=(223, 229, 238), width=3)
     y += 54
 
-    triage = _trend_ai(row)
-    prompt = "Question: hilarious moment, valid outrage, or is everyone overreacting?"
-    if row.get("source_kind") == "reddit_discussion":
-        prompt = "Question: is the top comment right, or is the thread missing the point?"
-    prompt = (
-        (triage.get("comment_mining") or {}).get("best_comment_prompt")
-        or triage.get("conversation_prompt")
-        or prompt
-    )
+    prompt = _trend_question(row)
     _draw_wrapped(draw, (card_x0 + 56, y), prompt, body_font, (26, 32, 44), card_x1 - card_x0 - 112, line_gap=12, max_lines=4)
 
     footer = f"Source shown for attribution: {source} - {row.get('url')}"

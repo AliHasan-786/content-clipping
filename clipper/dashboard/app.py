@@ -141,6 +141,9 @@ def index(request: Request, show: str = "pending_review", notice: Optional[str] 
         d = dict(r)
         d["metadata"] = db.jloads(d.get("metadata_json")) or {}
         clips.append(d)
+    source_clips = [c for c in clips if c.get("format") != "screenshot_card"]
+    card_clips = [c for c in clips if c.get("format") == "screenshot_card"]
+    review_clips = source_clips if show == "pending_review" else clips
 
     trends = []
     for r in trend_rows:
@@ -149,18 +152,24 @@ def index(request: Request, show: str = "pending_review", notice: Optional[str] 
         trends.append(d)
 
     posting_status = _posting_status(cfg)
+    integration_status = _integration_status(cfg)
+    visible_integrations = [i for i in integration_status if i["enabled"] or i["ready"]]
     return templates.TemplateResponse(
         "review.html",
         {
             "request": request,
             "clips": clips,
+            "source_clips": source_clips,
+            "card_clips": card_clips,
+            "review_clips": review_clips,
             "show": show,
             "counts": counts,
             "trends": trends,
             "trend_counts": trend_counts,
             "posting_status": posting_status,
             "post_ready_count": sum(1 for p in posting_status if p["ready"]),
-            "integration_status": _integration_status(cfg),
+            "integration_status": integration_status,
+            "visible_integrations": visible_integrations,
             "recent_posts": [dict(r) for r in recent_posts],
             "notice": notice,
             "ai_ready": _ai_ready(cfg),

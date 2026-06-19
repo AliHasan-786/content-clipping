@@ -554,17 +554,14 @@
       {% set nav_items = [
         ("pending_review", "review"),
         ("approved", "approved"),
-        ("post_failed", "post failed"),
-        ("posted", "posted"),
-        ("rejected", "rejected"),
-        ("all", "all")
+        ("posted", "posted")
       ] %}
       {% for key, label in nav_items %}
         <a href="?show={{key}}" class="{% if show == key %}active{% endif %}">
           {{label}}{% if counts.get(key) %} ({{counts[key]}}){% endif %}
         </a>
       {% endfor %}
-      <a href="#trend-queue">today's trends{% if trend_counts.get("new") %} ({{trend_counts["new"]}}){% endif %}</a>
+      <a href="#source-signals">sources{% if trend_counts.get("new") %} ({{trend_counts["new"]}}){% endif %}</a>
     </nav>
     <div class="header-actions">
       <form method="post" action="/schedule-approved">
@@ -644,21 +641,23 @@
     </div>
   </section>
 
-  <section class="posting-panel" aria-label="AI editing integrations">
-    <div>
-      <strong>AI editing integrations</strong>
-      <div class="meta-line">Optional polish/render/publish tools; local ffmpeg remains the default renderer.</div>
-    </div>
-    <div class="setup-chips">
-      {% for tool in integration_status %}
-        <span class="chip {% if tool.ready %}ready{% elif tool.enabled %}missing{% else %}off{% endif %}"
-              title="{{tool.role}} | {{tool.needs}}">
-          {{tool.name}}:
-          {% if tool.ready %}ready{% elif tool.enabled %}needs setup{% else %}off{% endif %}
-        </span>
-      {% endfor %}
-    </div>
-  </section>
+  {% if visible_integrations %}
+    <section class="posting-panel" aria-label="AI editing integrations">
+      <div>
+        <strong>AI editing integrations</strong>
+        <div class="meta-line">Optional polish/render/publish tools; local ffmpeg remains the default renderer.</div>
+      </div>
+      <div class="setup-chips">
+        {% for tool in visible_integrations %}
+          <span class="chip {% if tool.ready %}ready{% elif tool.enabled %}missing{% else %}off{% endif %}"
+                title="{{tool.role}} | {{tool.needs}}">
+            {{tool.name}}:
+            {% if tool.ready %}ready{% elif tool.enabled %}needs setup{% else %}off{% endif %}
+          </span>
+        {% endfor %}
+      </div>
+    </section>
+  {% endif %}
 
   {% if recent_posts %}
     <section class="posting-panel" aria-label="Recent post attempts">
@@ -677,7 +676,7 @@
     </section>
   {% endif %}
 
-  <section class="posting-panel" aria-label="Source queue">
+  <section class="posting-panel" id="source-signals" aria-label="Source queue">
     <div>
       <strong>Today's sources and trend signals</strong>
       <div class="meta-line">Open these before approving. Cards are rendered previews; these links are the underlying source/signal.</div>
@@ -707,30 +706,36 @@
     <div class="section-title">
       <div>
         <h2>
-          {% if show == "pending_review" %}Ready to review
+          {% if show == "pending_review" %}Source videos ready for review
           {% elif show == "approved" %}Approved to post
           {% elif show == "post_failed" %}Post failed
           {% elif show == "posted" %}Posted clips
           {% elif show == "rejected" %}Rejected clips
           {% else %}Clip library{% endif %}
         </h2>
-        <div class="meta-line">Use the video player or Open full video before approving a clip.</div>
+        <div class="meta-line">
+          {% if show == "pending_review" %}
+            This section is for actual source-footage renders. Discussion cards are separated below.
+          {% else %}
+            Use the video player or Open full video before approving a clip.
+          {% endif %}
+        </div>
       </div>
       <div class="meta-line">
         pending {{counts.get("pending_review", 0)}} | approved {{counts.get("approved", 0)}} | posted {{counts.get("posted", 0)}}
       </div>
     </div>
 
-    {% if not clips %}
+    {% if not review_clips %}
       <div class="empty">
-        No clips in this filter.
+        No source-footage clips in this filter.
         {% if show == "pending_review" %}
-          Render one from today's trend ideas below, or run <code>clip run</code>.
+          Add/approve official or licensed video sources, then run <code>clip run</code>.
         {% endif %}
       </div>
     {% endif %}
 
-    {% for c in clips %}
+    {% for c in review_clips %}
       <article class="clip-card" id="clip-{{c.id}}">
         <div class="media-panel">
           {% if c.rendered_path %}
@@ -776,34 +781,38 @@
           {% set plan = c.metadata.get('posting_plan') or {} %}
           {% set polish = c.metadata.get('polish_handoff') or {} %}
 
-          <div class="ai-actions">
-            <form method="post" action="/clip/{{c.id}}/ai-assist">
-              <input type="hidden" name="action" value="Make the captions funnier and more native to internet culture without changing facts.">
-              <button type="submit" {% if not ai_ready %}disabled{% endif %}>Funnier</button>
-            </form>
-            <form method="post" action="/clip/{{c.id}}/ai-assist">
-              <input type="hidden" name="action" value="Make the hook and captions more debate-driving, but keep them fair and non-defamatory.">
-              <button type="submit" {% if not ai_ready %}disabled{% endif %}>More debate</button>
-            </form>
-            <form method="post" action="/clip/{{c.id}}/ai-assist">
-              <input type="hidden" name="action" value="Shorten the TikTok caption and hashtags while keeping the hook strong.">
-              <button type="submit" {% if not ai_ready %}disabled{% endif %}>Shorter TikTok</button>
-            </form>
-            <form method="post" action="/clip/{{c.id}}/ai-assist">
-              <input type="hidden" name="action" value="Make all platform copy safer for rights, context, and brand suitability.">
-              <button type="submit" {% if not ai_ready %}disabled{% endif %}>Safer</button>
-            </form>
-            {% if c.rendered_path %}
-              <form method="post" action="/clip/{{c.id}}/polish">
-                <input type="hidden" name="provider" value="palmier_pro">
-                <button type="submit">Palmier handoff</button>
-              </form>
-              <form method="post" action="/clip/{{c.id}}/polish">
-                <input type="hidden" name="provider" value="descript">
-                <button type="submit">Descript handoff</button>
-              </form>
-            {% endif %}
-          </div>
+          {% if ai_ready or visible_integrations %}
+            <div class="ai-actions">
+              {% if ai_ready %}
+                <form method="post" action="/clip/{{c.id}}/ai-assist">
+                  <input type="hidden" name="action" value="Make the captions funnier and more native to internet culture without changing facts.">
+                  <button type="submit">Funnier</button>
+                </form>
+                <form method="post" action="/clip/{{c.id}}/ai-assist">
+                  <input type="hidden" name="action" value="Make the hook and captions more debate-driving, but keep them fair and non-defamatory.">
+                  <button type="submit">More debate</button>
+                </form>
+                <form method="post" action="/clip/{{c.id}}/ai-assist">
+                  <input type="hidden" name="action" value="Shorten the TikTok caption and hashtags while keeping the hook strong.">
+                  <button type="submit">Shorter TikTok</button>
+                </form>
+                <form method="post" action="/clip/{{c.id}}/ai-assist">
+                  <input type="hidden" name="action" value="Make all platform copy safer for rights, context, and brand suitability.">
+                  <button type="submit">Safer</button>
+                </form>
+              {% endif %}
+              {% if visible_integrations and c.rendered_path %}
+                <form method="post" action="/clip/{{c.id}}/polish">
+                  <input type="hidden" name="provider" value="palmier_pro">
+                  <button type="submit">Palmier handoff</button>
+                </form>
+                <form method="post" action="/clip/{{c.id}}/polish">
+                  <input type="hidden" name="provider" value="descript">
+                  <button type="submit">Descript handoff</button>
+                </form>
+              {% endif %}
+            </div>
+          {% endif %}
 
           {% if plan %}
             <div class="ai-panel">
@@ -900,6 +909,33 @@
         </div>
       </article>
     {% endfor %}
+
+    {% if show == "pending_review" and card_clips %}
+      <details class="brief-panel">
+        <summary>Discussion-card drafts ({{card_clips|length}}) — not source-footage videos</summary>
+        <div class="trend-grid" style="margin-top:12px;">
+          {% for c in card_clips %}
+            <article class="trend-card" id="clip-card-{{c.id}}">
+              <div class="trend-head">
+                <h3 class="trend-title">{{c.source_title or c.hook}}</h3>
+                <span class="score">{{c.virality_score or "-"}}</span>
+              </div>
+              <div class="trend-meta">
+                <span class="status-pill">{{c.status}}</span>
+                <span>{{c.format}}</span>
+                <span>{{ "%.1f"|format(c.end_s - c.start_s) }}s</span>
+              </div>
+              <p class="trend-treatment">Generated discussion card. Review this only if you want a text/commentary post, not a source-footage clip.</p>
+              <div class="media-actions">
+                {% if c.rendered_path %}<a href="/clip/{{c.id}}/media" target="_blank" rel="noopener">Open card video</a>{% endif %}
+                {% if c.source_url %}<a href="{{c.source_url}}" target="_blank" rel="noopener">Open source</a>{% endif %}
+                <button type="button" class="danger" onclick="rejectClip({{c.id}})">Reject</button>
+              </div>
+            </article>
+          {% endfor %}
+        </div>
+      </details>
+    {% endif %}
   </section>
 
   <section class="brief-panel" aria-label="Daily trend brief">

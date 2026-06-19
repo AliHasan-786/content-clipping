@@ -70,6 +70,19 @@ class AuthHelperTests(unittest.TestCase):
             self.assertTrue(dest.exists())
             self.assertIn("YT_CLIENT_SECRETS_FILE=secrets/yt_client_secret.json", env_path.read_text())
 
+    def test_set_reddit_credentials(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            env_path = Path(tmp) / ".env"
+            with patch.object(auth, "ENV_PATH", env_path):
+                with patch.dict(os.environ, {}, clear=True):
+                    auth.set_reddit_credentials("rid", "rsecret", "ua")
+
+            text = env_path.read_text()
+
+        self.assertIn("REDDIT_CLIENT_ID=rid", text)
+        self.assertIn("REDDIT_CLIENT_SECRET=rsecret", text)
+        self.assertIn("REDDIT_USER_AGENT=ua", text)
+
 
 if __name__ == "__main__":
     unittest.main()

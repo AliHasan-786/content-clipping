@@ -101,6 +101,8 @@ clipper/
 - Discover same-day opportunities and score by recency + engagement velocity:
   - Reddit: upvotes, comments, age.
   - RSS/manual: recency plus optional manually supplied score/comment signals.
+- Reddit discovery must use real JSON/API engagement when available. RSS rank alone is not enough to call something viral, and the pipeline must not synthesize fake upvote/comment counts.
+- Default Reddit thresholds are intentionally stricter: thousands of upvotes, meaningful comments, or high velocity on top of base engagement.
 - Classify every opportunity by `source_kind`:
   - **Allowed:** `social_text`, `reddit_discussion`, `official_clip`, `licensed_clip`, `public_domain_clip`, `creator_owned_clip`, `news_article`.
   - **Review-required:** `streamer_clip`, `movie_clip`, `sports_highlight`, `concert_clip`, `random_video`, `viral_clip`, `reddit_linked_video`.
@@ -182,6 +184,7 @@ clipper/
   - ✓ Approve  /  ✗ Reject buttons
 - Top-level queue summary shows ready-to-review clips, approved clips, posted clips, and same-day trend ideas.
 - Daily trend brief groups open trend opportunities into render-now cards, source-rights review, blocked signals, source-search hints, and next actions.
+- Main review is source-footage first. Screenshot/commentary card drafts are separated from actual video clips so they are not mistaken for raw source footage.
 - Posting setup chips show whether YouTube, Instagram, and TikTok credentials are connected before the dashboard allows direct posting.
 - Approve → status `approved`. Reject → `rejected` (+ optional reason to improve scout over time).
 - **This is the owner's entire daily job.** ~5 min.
@@ -228,6 +231,7 @@ Core instructions to encode:
    - Save locally with `clip auth anthropic`.
 5. **TTS** — start with local `kokoro`/`piper` (free). ElevenLabs key optional for premium voice.
 6. **Local tools** — `brew install yt-dlp ffmpeg` + build/install `whisper.cpp` (or `pip install faster-whisper`).
+7. **Reddit API app** — optional but recommended for trend discovery because anonymous Reddit JSON can be blocked. Save with `clip auth reddit --client-id ... --client-secret ... --user-agent ...`.
 
 Put all keys in `.env`. Never commit it.
 
